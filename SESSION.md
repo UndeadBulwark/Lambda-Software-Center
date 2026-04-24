@@ -27,6 +27,23 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 ## Session Closeout — Fri Apr 24 (continued)
 
+### Search Result Relevance Sorting
+
+**Root cause**: `alpm_db_search()` and AUR RPC return results in undefined/database order. Searching "firefox" could show `firefox-i18n-something` before `firefox` because the description happened to match and it was registered in a later sync DB.
+
+**Fix applied**:
+1. **`src/backend/PackageSearchUtils.h`**: New header-only utility with inline functions:
+   - `searchRelevanceScore(const Package&, const QString&)`: 1000 exact match, 900 prefix, 800 name-contains, 100 description-only, 0 otherwise. Case-insensitive.
+   - `sortPackagesBySearchRelevance(QList<Package>&, const QString&)`: `std::sort` with score descending, alphabetical `localeAwareCompare` tie-break.
+2. **`src/backend/pacman/AlpmWrapper.cpp`**: After collecting all DB results, calls `sortPackagesBySearchRelevance(results, query)` before return.
+3. **`src/backend/aur/AurClient.cpp`**: After parsing JSON array in `onReplyFinished()` and `onMockSearch()`, calls `sortPackagesBySearchRelevance(results, m_pendingQuery)` before emit.
+4. **`src/backend/flatpak/FlatpakBackend.cpp`**: After mock result construction, sorts before emit.
+5. **`tests/test_pacman.cpp`**: Added 2 tests:
+   - `test_search_sorts_exact_match_first` — verifies `linux` appears before `linux-firmware`
+   - `test_search_sorts_prefix_before_contains` — verifies exact < prefix < contains ordering
+
+**All 4 test suites pass** (17 + 10 + 12 + 8 = 47 test cases total).
+
 ### Multi-Source Search Fix + Model Tests
 
 **Root cause**: `searchModel` in `main.cpp` was declared but **never connected** to any backend's `searchResultsReady`. Backends emitted results, signal went nowhere, grid stayed empty. `installedModel` and `updatesModel` were correctly wired via `setPackages`, but `searchModel` had no connections at all.
