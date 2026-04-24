@@ -19,13 +19,50 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 ## Current Version Target
 
-`v0.2.0` — QML Application Shell ✅ **Complete**
+`v0.3.0` — Package Detail View ✅ **Complete**
 
-**Also completed:** System theme detection + dark/light palette support
+**Also completed:** v0.2.0 Application Shell, system theme detection + dark/light palette support
 
 ---
 
 ## Session Closeout — Fri Apr 24
+
+### v0.3.0 Completed
+
+- **Package Detail View (DetailPage.qml)**:
+  - `StackView.push` from any `PackageCard` delegate, passing `model` reference as `packageData` property
+  - Header row: 52×52 source-colored icon with initial, package name (`20px` bold), version, source badge
+  - Ghost Install/Remove buttons (display-only, styled with `Theme.borderSecondary` border)
+  - Description section: `longDescription` falls back to `description`
+  - Metadata row: installed size (human-formatted bytes → KB/MB/GB), download size, dependency count
+  - Dependencies list rendered as comma-separated text
+  - Flatpak rating row: visible only when `source === 2 && rating > 0`, displays score out of 5
+  - Back button at top: `← Back` text with `MouseArea` calling `StackView.view.pop()`
+  - `Flickable` wrapper for scrollable content
+  - All styling exclusively from `Theme.qml` — no hardcoded colors or sizes
+
+- **PackageCard.qml**: Added `onClicked` handler in existing `MouseArea`:
+  - `StackView.view.push("qrc:/LambdaSoftwareCenter/qml/pages/DetailPage.qml", { packageData: model })`
+  - `model` reference passed directly, all delegate roles accessible via `packageData.name`, etc.
+
+- **Scope exclusions correctly applied**:
+  - AUR: no PKGBUILD viewer, no vote count, no popularity score (roadmap v0.5.0+)
+  - AppStream: no integration (roadmap v0.6.0)
+  - Screenshots: not implemented (roadmap v0.6.0)
+  - Install/Remove: ghost buttons only, no transaction wiring (gated to v0.4.0)
+  - No `featured.json` or `FeaturedPage` changes
+
+- **All 3 tests still pass** (test_pacman 14/14, test_aur 8/8, test_flatpak 12/12).
+- **Builds clean** — no QML errors on launch.
+- **Pushed to GitHub `main`** as `3051e25`.
+
+### v0.2.0 Previously Completed
+
+- Full QML Application Shell with sidebar, topbar, search, source tabs, status bar
+- BrowsePage with 3-column card grid, 250ms debounced search
+- System theme detection via `QStyleHints`, live `Binding` to `Theme.isDark`
+- Dark/light conditional palette in Theme.qml
+- QML warnings diagnostic hook in main.cpp
 
 ### v0.2.0 Completed
 
@@ -105,12 +142,14 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 ## Next Task
 
-`v0.3.0` — Core Application Views:
-- Implement `InstalledPage.qml` with `installedModel` bound to `pacmanBackend.listInstalled()`
-- Implement `UpdatesPage.qml` with `updatesModel` bound to `pacmanBackend.checkUpdates()`
-- Implement `FeaturedPage.qml` with curated list from `data/featured.json`
-- Add `UpdatesBanner.qml` to top of BrowsePage when updates are available
-- Wire `UpdatesModel` and `InstalledModel`
+`v0.4.0` — Install and Remove:
+- Confirmation dialog with dependencies, size delta, source
+- AUR install flow: mandatory PKGBUILD review step
+- Progress drawer at window bottom with per-step status
+- Remove flow with orphan detection
+- polkit elevation for pacman transactions
+- Transaction error handling with readable messages
+- Install and Remove buttons wired to real transactions
 
 ---
 
