@@ -2,7 +2,7 @@
 
 A native Qt6/QML package manager for Arch Linux — pacman, AUR, and Flatpak in one interface.
 
-<!-- screenshot: add when v0.2.0 ships -->
+![Lambda Software Center Mockup](docs/screenshots/mockup.png)
 
 ![Version](https://img.shields.io/badge/version-v0.1.0-blue)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
