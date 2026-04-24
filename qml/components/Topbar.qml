@@ -1,5 +1,7 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
+import LambdaSoftwareCenter
 
 Rectangle {
     id: topbar
@@ -18,22 +20,22 @@ Rectangle {
     }
 
     RowLayout {
-        anchors.fill: parent
-        anchors.leftMargin: Theme.contentPadding
-        anchors.rightMargin: Theme.contentPadding
+        x: Theme.contentPadding
+        width: parent.width - 2 * Theme.contentPadding
+        height: parent.height
         spacing: 12
 
         SearchBar {
             id: searchBar
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignVCenter
-            onSearchTextChanged: topbar.searchTriggered(text)
+            onSearchTextChanged: function(text) { topbar.searchTriggered(text) }
         }
 
         SourceTabs {
             id: sourceTabs
             Layout.alignment: Qt.AlignVCenter
-            onFilterChanged: topbar.sourceFilterChanged(filter)
+            onFilterChanged: function(filter) { topbar.sourceFilterChanged(filter) }
         }
     }
 }

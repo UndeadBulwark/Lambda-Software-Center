@@ -1,5 +1,6 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Layouts
+import LambdaSoftwareCenter
 
 Rectangle {
     id: navItem
@@ -10,7 +11,7 @@ Rectangle {
     property bool active: false
     property string text: ""
     property int count: 0
-    property color sourceDot: ""
+    property var sourceDot: null
     signal clicked()
 
     // Right border accent
@@ -21,19 +22,18 @@ Rectangle {
         color: Theme.accent
     }
 
-    Row {
+    RowLayout {
         anchors.fill: parent
-        leftPadding: 16
-        rightPadding: 16
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
         spacing: 10
-        anchors.verticalCenter: parent.verticalCenter
 
         // Source dot (for Sources group)
         Rectangle {
             id: dot
             width: navItem.sourceDot !== "" ? 8 : 0
             height: width
-            anchors.verticalCenter: parent.verticalCenter
+            Layout.alignment: Qt.AlignVCenter
             radius: width / 2
             color: navItem.sourceDot
             visible: navItem.sourceDot !== ""
@@ -45,10 +45,10 @@ Rectangle {
             font.pixelSize: 13
             font.weight: active ? Font.Medium : Font.Normal
             color: active ? Theme.accent : Theme.textSecondary
-            anchors.verticalCenter: parent.verticalCenter
+            Layout.alignment: Qt.AlignVCenter
         }
 
-        Item { Layout.fillWidth: true }
+        Item { Layout.fillWidth: true; height: 1 }
 
         // Updates count pill
         Rectangle {
@@ -58,7 +58,7 @@ Rectangle {
             width: Math.max(20, countText.implicitWidth + 14)
             radius: 9
             color: Theme.aur
-            anchors.verticalCenter: parent.verticalCenter
+            Layout.alignment: Qt.AlignVCenter
 
             Text {
                 id: countText

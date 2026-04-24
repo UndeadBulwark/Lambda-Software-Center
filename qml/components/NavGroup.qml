@@ -1,27 +1,23 @@
 import QtQuick
+import LambdaSoftwareCenter
 
 Column {
     id: navGroup
+    width: parent.width
     spacing: 0
+    bottomPadding: 18
 
-    property string label
+    property string label: ""
 
     Text {
-        id: labelText
         text: navGroup.label
         font.pixelSize: 10
         font.weight: Font.Medium
         color: Theme.textTertiary
-        letterSpacing: 0.08 * font.pixelSize
-        height: navGroup.label === "" ? 0 : implicitHeight + 6
+        visible: navGroup.label !== ""
+        height: visible ? implicitHeight + 6 : 0
         verticalAlignment: Text.AlignBottom
         leftPadding: 16
         rightPadding: 16
-    }
-
-    Column {
-        width: parent.width
-        spacing: 0
-        children: navGroup.children
     }
 }

@@ -1,6 +1,5 @@
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
+import LambdaSoftwareCenter
 
 Rectangle {
     id: sidebar
@@ -17,19 +16,15 @@ Rectangle {
         spacing: 0
 
         // Logo
-        Row {
+        Item {
             id: logoRow
             width: parent.width
             height: 58
-            padding: 0
-            leftPadding: 16
-            topPadding: 16
-            rightPadding: 16
-            bottomPadding: 12
-            spacing: 8
 
             Rectangle {
                 id: logoIcon
+                x: 16
+                y: 10
                 width: 28
                 height: 28
                 radius: 7
@@ -46,11 +41,12 @@ Rectangle {
 
             Text {
                 id: logoText
+                x: logoIcon.x + logoIcon.width + 8
+                anchors.verticalCenter: logoIcon.verticalCenter
                 text: "Lambda"
                 font.pixelSize: 14
                 font.weight: Font.Medium
                 color: Theme.textPrimary
-                anchors.verticalCenter: logoIcon.verticalCenter
             }
         }
 
@@ -62,7 +58,6 @@ Rectangle {
             NavItem {
                 width: parent.width
                 text: "Browse"
-                icon: navIconList
                 active: sidebar.currentPage === "browse"
                 onClicked: sidebar.requestPage("browse")
             }
@@ -70,7 +65,6 @@ Rectangle {
             NavItem {
                 width: parent.width
                 text: "Featured"
-                icon: navIconStar
                 active: sidebar.currentPage === "featured"
                 onClicked: sidebar.requestPage("featured")
             }
@@ -78,7 +72,6 @@ Rectangle {
             NavItem {
                 width: parent.width
                 text: "Recent"
-                icon: navIconClock
                 active: sidebar.currentPage === "recent"
                 onClicked: sidebar.requestPage("recent")
             }
@@ -92,7 +85,6 @@ Rectangle {
             NavItem {
                 width: parent.width
                 text: "Installed"
-                icon: navIconCheck
                 active: sidebar.currentPage === "installed"
                 onClicked: sidebar.requestPage("installed")
             }
@@ -100,7 +92,6 @@ Rectangle {
             NavItem {
                 width: parent.width
                 text: "Updates"
-                icon: navIconDownload
                 active: sidebar.currentPage === "updates"
                 count: 0
                 onClicked: sidebar.requestPage("updates")
@@ -131,11 +122,4 @@ Rectangle {
             }
         }
     }
-
-    // Inline icon components (used via id reference)
-    Component { id: navIconList;    Rectangle { width: 16; height: 16; color: "transparent" } }
-    Component { id: navIconStar;    Rectangle { width: 16; height: 16; color: "transparent" } }
-    Component { id: navIconClock;   Rectangle { width: 16; height: 16; color: "transparent" } }
-    Component { id: navIconCheck;   Rectangle { width: 16; height: 16; color: "transparent" } }
-    Component { id: navIconDownload; Rectangle { width: 16; height: 16; color: "transparent" } }
 }

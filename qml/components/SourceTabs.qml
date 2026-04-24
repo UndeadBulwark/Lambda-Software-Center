@@ -1,4 +1,5 @@
 import QtQuick
+import LambdaSoftwareCenter
 
 Row {
     id: sourceTabs

@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import LambdaSoftwareCenter
 
 Rectangle {
     id: browsePage
@@ -14,7 +15,6 @@ Rectangle {
             return;
         }
         searchModel.clear();
-        // Only call backends whose source matches the filter (or all if -1)
         if (sourceFilter === -1 || sourceFilter === 0)
             pacmanBackend.search(searchQuery);
         if (sourceFilter === -1 || sourceFilter === 1)
@@ -25,7 +25,6 @@ Rectangle {
 
     onSourceFilterChanged: {
         if (searchQuery.length >= 2) {
-            // Re-run search with new filter
             searchModel.clear();
             if (sourceFilter === -1 || sourceFilter === 0)
                 pacmanBackend.search(searchQuery);
@@ -41,7 +40,6 @@ Rectangle {
         anchors.margins: 20
         spacing: 14
 
-        // Section title
         Text {
             text: searchQuery.length < 2 ? "Browse packages" : "Search results"
             font.pixelSize: 15
@@ -49,7 +47,6 @@ Rectangle {
             color: Theme.textPrimary
         }
 
-        // Results grid
         GridView {
             id: grid
             width: parent.width
@@ -65,7 +62,6 @@ Rectangle {
                 anchors.margins: 3
             }
 
-            // Empty state
             Text {
                 anchors.centerIn: parent
                 text: searchQuery.length < 2 ? "Type at least 2 characters to search" : "No packages found"

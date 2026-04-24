@@ -1,11 +1,17 @@
 import QtQuick
+import LambdaSoftwareCenter
 
 Rectangle {
     id: packageCard
     radius: Theme.radiusLg
     color: Theme.bgPrimary
 
-    // Border workaround for 0.5px border visual
+    MouseArea {
+        id: cardMouse
+        anchors.fill: parent
+        hoverEnabled: true
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
@@ -14,18 +20,11 @@ Rectangle {
         border.width: 1
     }
 
-    MouseArea {
-        id: cardMouse
-        anchors.fill: parent
-        hoverEnabled: true
-    }
-
     Column {
         anchors.fill: parent
         anchors.margins: 14
         spacing: 8
 
-        // Header row
         Row {
             width: parent.width
             spacing: 10
@@ -63,7 +62,6 @@ Rectangle {
             }
         }
 
-        // Description
         Text {
             width: parent.width
             text: model.description || ""
@@ -76,7 +74,6 @@ Rectangle {
             elide: Text.ElideRight
         }
 
-        // Footer row
         Row {
             width: parent.width
             spacing: 6

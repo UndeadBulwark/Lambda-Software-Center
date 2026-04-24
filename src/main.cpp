@@ -1,6 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QtQml>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QEventLoop>
@@ -141,6 +142,12 @@ static int runGui(int argc, char *argv[]) {
     qRegisterMetaType<Package::InstallState>("Package::InstallState");
     qRegisterMetaType<QList<Package>>("QList<Package>");
 
+    // Register Theme.qml as a singleton so all child components can import LambdaSoftwareCenter & use Theme
+    qmlRegisterSingletonType(
+        QUrl(QStringLiteral("qrc:/LambdaSoftwareCenter/qml/Theme.qml")),
+        "LambdaSoftwareCenter", 1, 0, "Theme"
+    );
+
     PacmanBackend *pacmanBackend = new PacmanBackend();
     AurBackend *aurBackend = new AurBackend();
     FlatpakBackend *flatpakBackend = new FlatpakBackend();
@@ -173,7 +180,16 @@ static int runGui(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("pacmanBackend", pacmanBackend);
     engine.rootContext()->setContextProperty("aurBackend", aurBackend);
     engine.rootContext()->setContextProperty("flatpakBackend", flatpakBackend);
-    engine.load(QUrl(QStringLiteral("qrc:/qml/main.qml")));
+
+    // Print any QML warnings so we can diagnose load failures
+    QObject::connect(&engine, &QQmlApplicationEngine::warnings,
+        [](const QList<QQmlError> &warnings) {
+            for (const QQmlError &err : warnings) {
+                std::cerr << "QML Error: " << err.toString().toStdString() << "\n";
+            }
+        });
+
+    engine.load(QUrl(QStringLiteral("qrc:/LambdaSoftwareCenter/qml/main.qml")));
 
     if (engine.rootObjects().isEmpty())
         return -1;

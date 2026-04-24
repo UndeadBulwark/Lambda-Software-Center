@@ -1,4 +1,5 @@
 import QtQuick
+import LambdaSoftwareCenter
 
 Rectangle {
     id: statusBar
@@ -14,43 +15,75 @@ Rectangle {
     }
 
     Row {
-        anchors.fill: parent
-        leftPadding: 20
-        rightPadding: 20
+        x: 20
+        width: parent.width - 40
+        height: parent.height
         spacing: 16
 
-        StatusItem { label: "Pacman ready";     dotColor: Theme.dotGreen }
-        StatusItem { label: "AUR helper";       dotColor: Theme.dotAmber }
-        StatusItem { label: "Flatpak ready";    dotColor: Theme.dotPurple }
+        Row {
+            height: parent.height
+            spacing: 5
 
-        Item { width: 1; height: 1 }
+            Rectangle {
+                width: 6
+                height: 6
+                anchors.verticalCenter: parent.verticalCenter
+                radius: 3
+                color: Theme.dotGreen
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Pacman ready"
+                font.pixelSize: 11
+                color: Theme.textTertiary
+            }
+        }
+
+        Row {
+            height: parent.height
+            spacing: 5
+
+            Rectangle {
+                width: 6
+                height: 6
+                anchors.verticalCenter: parent.verticalCenter
+                radius: 3
+                color: Theme.dotAmber
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "AUR helper"
+                font.pixelSize: 11
+                color: Theme.textTertiary
+            }
+        }
+
+        Row {
+            height: parent.height
+            spacing: 5
+
+            Rectangle {
+                width: 6
+                height: 6
+                anchors.verticalCenter: parent.verticalCenter
+                radius: 3
+                color: Theme.dotPurple
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Flatpak ready"
+                font.pixelSize: 11
+                color: Theme.textTertiary
+            }
+        }
+
+        Item { width: parent.width * 0.5; height: 1 }
 
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "Ready"
             font.pixelSize: 11
             color: Theme.textTertiary
-        }
-    }
-
-    component StatusItem: Row {
-        spacing: 5
-        anchors.verticalCenter: parent.verticalCenter
-        property string label
-        property color dotColor
-
-        Rectangle {
-            width: 6
-            height: 6
-            radius: 3
-            color: dotColor
-            anchors.verticalCenter: parent.verticalCenter
-        }
-        Text {
-            text: label
-            font.pixelSize: 11
-            color: Theme.textTertiary
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 }

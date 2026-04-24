@@ -45,8 +45,6 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 - **Builds clean**: Production target compiles with QML single compilation, `letterSpacing` uses workaround (`0.08 * font.pixelSize`), no hardcoded colors anywhere.
 - **Pushed to GitHub `main`**.
 
-### Repo state: clean, nothing uncommitted.
-
 ---
 
 ## Previous Session History
@@ -85,6 +83,7 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 - `checkUpdates()` slow (~20s on 1300+ packages). May need threading or caching later.
 - Flatpak backend needs `libflatpak` installed to implement properly.
 - App icons currently show source-colored circle with first initial (no AppStream integration yet).
+- **Theme singleton**: uses `qmlRegisterSingletonType` from `main.cpp` pointing to QRC URL. All QML files import `LambdaSoftwareCenter` module. This is the working approach tested and confirmed.
 
 ---
 
@@ -102,14 +101,15 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 ## Files Touched Last Session
 
 ### Modified:
-- `qml/main.qml` — full shell with StackView routing, property bindings, sidebar/topbar/status bar layout
+- `src/main.cpp` — added `qmlRegisterSingletonType` for Theme singleton, `QML warnings` diagnostic hook, fixed QRC load path
+- `qml/main.qml` — full shell with StackView routing, LambdaSoftwareCenter import
 - `qml/components/Sidebar.qml` — logo, nav groups, sources, active/hover states
-- `qml/components/NavGroup.qml` — labeled group container with padding
-- `qml/components/NavItem.qml` — nav item with source dot, count pill, active right-border accent
-- `qml/components/Topbar.qml` — topbar layout with SearchBar + SourceTabs
+- `qml/components/NavGroup.qml` — labeled group container, no circular children binding
+- `qml/components/NavItem.qml` — nav item with source dot, count pill, fixed `property var sourceDot: null`
+- `qml/components/Topbar.qml` — fixed RowLayout without invalid Row padding properties
 - `qml/components/SearchBar.qml` — debounced TextField, Canvas search icon
 - `qml/components/SourceTabs.qml` — All/Pacman/AUR/Flatpak toggle tabs
-- `qml/components/StatusBar.qml` — status dots and labels
+- `qml/components/StatusBar.qml` — removed invalid `leftPadding`/`rightPadding`, used explicit `x`/`width`
 - `qml/components/PackageCard.qml` — full data-bound package card
 - `qml/components/BadgePill.qml` — four variant source/state pills
 - `qml/components/InstallButton.qml` — ghost/primary/installed button states
@@ -143,3 +143,4 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 - Target name in CMake is `lsc_app`; output executable is `lambda-software-center`.
 - Test seams are guarded by `#ifdef QT_TESTLIB_LIB` — never present in production builds.
 - `letterSpacing` is not supported in `Text` in Qt Quick 1.0; workaround used in `NavGroup`
+- **Singleton pattern**: Theme registered via `qmlRegisterSingletonType(QUrl("qrc:/LambdaSoftwareCenter/qml/Theme.qml"), "LambdaSoftwareCenter", 1, 0, "Theme")` in C++ root context. All QML files import `LambdaSoftwareCenter`.
