@@ -78,22 +78,16 @@ Rectangle {
             elide: Text.ElideRight
         }
 
-        Item {
-            width: parent.width
-            height: sourceBadge.height
+        Row {
+            spacing: 6
 
             BadgePill {
-                id: sourceBadge
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
                 variant: badgeForSource(model.source)
                 label: badgeForSource(model.source)
                 visible: model.source !== undefined
             }
 
             BadgePill {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
                 variant: "installed"
                 label: "Installed"
                 visible: model.state === 1
