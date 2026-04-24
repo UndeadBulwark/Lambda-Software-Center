@@ -6,9 +6,10 @@ Rectangle {
     id: navItem
     width: parent ? parent.width : 200
     height: 38
-    color: active ? Theme.bgPrimary : "transparent"
+    color: active || hovered ? Theme.bgPrimary : "transparent"
 
     property bool active: false
+    property bool hovered: false
     property string text: ""
     property int count: 0
     property var sourceDot: null
@@ -74,14 +75,7 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         onClicked: navItem.clicked()
-
-        onEntered: {
-            if (!navItem.active)
-                navItem.color = Theme.bgPrimary
-        }
-        onExited: {
-            if (!navItem.active)
-                navItem.color = "transparent"
-        }
+        onEntered: navItem.hovered = true
+        onExited:  navItem.hovered = false
     }
 }

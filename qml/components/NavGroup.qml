@@ -15,6 +15,7 @@ Column {
         font.pixelSize: 11
         font.weight: Font.Medium
         font.letterSpacing: 1.2
+        color: Theme.textTertiary
         visible: navGroup.label !== ""
         height: visible ? implicitHeight + 6 : 0
         verticalAlignment: Text.AlignBottom
