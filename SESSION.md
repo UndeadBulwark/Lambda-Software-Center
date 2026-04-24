@@ -21,13 +21,101 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 `v0.3.0` — Package Detail View ✅ **Complete**
 
-**Also completed:** v0.2.0 Application Shell, system theme detection + dark/light palette support
+**Also completed:** v0.2.0 Application Shell, system theme detection + dark/light palette support, multi-source search accumulation fix + model unit tests
 
 ---
 
-## Session Closeout — Fri Apr 24
+## Session Closeout — Fri Apr 24 (continued)
 
-### v0.3.0 Completed
+### Multi-Source Search Fix + Model Tests
+
+**Root cause**: `searchModel` in `main.cpp` was declared but **never connected** to any backend's `searchResultsReady`. Backends emitted results, signal went nowhere, grid stayed empty. `installedModel` and `updatesModel` were correctly wired via `setPackages`, but `searchModel` had no connections at all.
+
+**Fix applied**:
+1. **`src/models/PackageListModel.h/.cpp`**: Added `appendPackages(const QList<Package>&)` method. Uses `beginInsertRows`/`endInsertRows` for correct incremental model notification. Empty guard prevents invalid row range signals.
+2. **`src/main.cpp`**: Wired `pacmanBackend`, `aurBackend`, `flatpakBackend` `searchResultsReady` → `searchModel::appendPackages`. Kept `installedListReady`/`updatesReady` → `setPackages` for replace semantics.
+3. **`tests/models/test_packagelistmodel.cpp`**: New test suite with 6 test cases, 8 assertions total:
+   - `testAppendPackagesAccumulates` — row count, data at new index
+   - `testAppendPackagesEmptyIsNoOp` — `rowsInserted` signal spy count == 0
+   - `testAppendMultipleAtOnce` — single signal emission for batch insert
+   - `testSetPackagesReplaces` — `setPackages` still works (model reset)
+   - `testClearEmptiesModel` — `clear()` resets to zero rows
+   - `testPackagesReturnsInternalList` — accessor returns correct copy
+4. **`tests/CMakeLists.txt`**: Added `test_models` target via `add_backend_test(test_models models/test_packagelistmodel.cpp)`.
+
+**All 4 test suites pass** (15 + 10 + 12 + 6 = 43 test cases total).
+
+**Builds clean**: `lambda-software-center` executable links without undefined references. Offscreen launch produces zero QML warnings.
+
+### v0.3.0 Previously Completed
+
+- **Package Detail View (DetailPage.qml)**:
+  - `StackView.push` from any `PackageCard` delegate, passing `model` reference as `packageData` property
+  - Header row: 52×52 source-colored icon with initial, package name (`20px` bold), version, source badge
+  - Ghost Install/Remove buttons (display-only, styled with `Theme.borderSecondary` border)
+  - Description section: `longDescription` falls back to `description`
+  - Metadata row: installed size (human-formatted bytes → KB/MB/GB), download size, dependency count
+  - Dependencies list rendered as comma-separated text
+  - Flatpak rating row: visible only when `source === 2 && rating > 0`, displays score out of 5
+  - Back button at top: `← Back` text with `MouseArea` calling `StackView.view.pop()`
+  - `Flickable` wrapper for scrollable content
+  - All styling exclusively from `Theme.qml` — no hardcoded colors or sizes
+
+- **PackageCard.qml**: Added `onClicked` handler in existing `MouseArea`:
+  - `StackView.view.push("qrc:/LambdaSoftwareCenter/qml/pages/DetailPage.qml", { packageData: model })`
+  - `model` reference passed directly, all delegate roles accessible via `packageData.name`, etc.
+
+- **Scope exclusions correctly applied**:
+  - AUR: no PKGBUILD viewer, no vote count, no popularity score (roadmap v0.5.0+)
+  - AppStream: no integration (roadmap v0.6.0)
+  - Screenshots: not implemented (roadmap v0.6.0)
+  - Install/Remove: ghost buttons only, no transaction wiring (gated to v0.4.0)
+  - No `featured.json` or `FeaturedPage` changes
+
+- **All 3 tests still pass** (test_pacman 14/14, test_aur 8/8, test_flatpak 12/12).
+- **Builds clean** — no QML errors on launch.
+- **Pushed to GitHub `main`** as `3051e25`.
+
+### v0.2.0 Previously Completed
+
+- Full QML Application Shell with sidebar, topbar, search, source tabs, status bar
+- BrowsePage with 3-column card grid, 250ms debounced search
+- System theme detection via `QStyleHints`, live `Binding` to `Theme.isDark`
+- Dark/light conditional palette in Theme.qml
+- QML warnings diagnostic hook in main.cpp
+
+### v0.2.0 Completed
+
+- **Implemented full QML Application Shell** matching the UI spec exactly:
+  - `main.qml`: Root `ApplicationWindow` with sidebar + main area layout. `StackView` page routing wired to sidebar nav items (`browse`, `featured`, `recent`, `installed`, `updates`).
+  - `Sidebar.qml`: Fixed 200px width, logo, three `NavGroup`s (Discover, Library, Sources), `NavItem`s with source dots, active border accent (2px right), hover states.
+  - `Topbar.qml`: Search bar + source tabs row with `Layout` positioning.
+  - `SearchBar.qml`: 250ms debounced `TextField` with Canvas-drawn search icon. Emits `onSearchTextChanged` after debounce.
+  - `SourceTabs.qml`: `All` / `Pacman` / `AUR` / `Flatpak` filter tabs with toggle styling (accent bg/border when active).
+  - `StatusBar.qml`: Three status items with colored dots + right-aligned status text.
+  - `PackageCard.qml`: Full data-bound card with `AppIcon` (initials, color-coded by source), `PackageName`, `Version`, `Description`, `BadgePill` source badge, and `Installed` state pill. Hover border transition.
+  - `BadgePill.qml`: Four variants (`pacman`, `aur`, `flatpak`, `installed`) with correct colors.
+  - `InstallButton.qml`: Ghost/primary/installed states (currently display-only).
+- **Implemented `BrowsePage.qml`**: 3-column `GridView` bound to `searchModel`, empty state message, scroll indicator. Triggers backend search when `searchQuery` changes.
+- **Wired 250ms debounced search**: `SearchBar` → `Topbar` → `main.qml` property → `BrowsePage` → `pacmanBackend.search()` / `aurBackend.search()` / `flatpakBackend.search()` respecting `sourceFilter`.
+- **Added `PackageListModel::clear()`** Q_INVOKABLE method so BrowsePage clears previous results before new search.
+- **Stubbed remaining pages** (`FeaturedPage`, `RecentPage`, `InstalledPage`, `UpdatesPage`, `DetailPage`) with placeholder text.
+- **All 3 tests still pass** (test_pacman 14/14, test_aur 8/8, test_flatpak 12/12).
+- **Builds clean**: Production target compiles with QML single compilation, no hardcoded colors anywhere.
+- **Pushed to GitHub `main`**.
+
+### QOL Fixes (post v0.2.0)
+
+1. **Tab highlight bug fix**: Moved `activeTab` to `Topbar` as single source of truth. `SourceTabs` is now pure — delegates derive highlight from `activeIndex` comparison, emit `indexClicked(index)` on click. No tab holds independent state.
+2. **Removed "Browse packages" heading**: Redundant heading below toolbar removed from `BrowsePage.qml`. Sidebar already indicates active section.
+3. **Larger sidebar labels**: `NavGroup` labels increased from 10px to 11px, added `font.letterSpacing: 1.2`, added `topPadding: 8` for visual separation between groups.
+
+### Theme Detection + Dark/Light Mode (QOL addition)
+
+- **`src/main.cpp`**: Added `QStyleHints` include, `systemDarkMode` detection via `QGuiApplication::styleHints()->colorScheme()`, `colorSchemeChanged` signal connected to update context property live.
+- **`qml/Theme.qml`**: Added `isDark` property (defaults to light), all neutral tokens become conditional ternary expressions (bgPrimary, bgSecondary, textPrimary, textSecondary, textTertiary, borderSecondary, borderTertiary). Brand/accent colors stay identical in both modes; surface backgrounds darken in dark mode.
+- **`qml/main.qml`**: `Binding` element connects `Theme.isDark` to `systemDarkMode` context property, so the app responds to live system theme changes without restart.
+- **Pushed:** `c32c1f5` on `main`.
 
 - **Package Detail View (DetailPage.qml)**:
   - `StackView.push` from any `PackageCard` delegate, passing `model` reference as `packageData` property
