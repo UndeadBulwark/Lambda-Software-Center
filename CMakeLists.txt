@@ -94,6 +94,7 @@ qt_add_qml_module(lsc_app
         qml/components/StatusBar.qml
         qml/components/UpdatesBanner.qml
         qml/components/ProgressDrawer.qml
+        qml/components/ConfirmDialog.qml
         qml/pages/BrowsePage.qml
         qml/pages/FeaturedPage.qml
         qml/pages/RecentPage.qml

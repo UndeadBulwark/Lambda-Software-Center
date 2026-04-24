@@ -102,6 +102,21 @@ Rectangle {
                             font.pixelSize: 12
                             color: Theme.textSecondary
                         }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                var w = Window.window
+                                if (w && w.confirmDialog) {
+                                    w.confirmDialog.pkgName = packageData.name || ""
+                                    w.confirmDialog.pkgVersion = packageData.version || ""
+                                    w.confirmDialog.pkgSource = badgeForSource(packageData.source)
+                                    w.confirmDialog.pkgDependencies = packageData.dependencies || []
+                                    w.confirmDialog.pkgSize = packageData.downloadSize || "N/A"
+                                    w.confirmDialog.visible = true
+                                }
+                            }
+                        }
                     }
 
                     Rectangle {

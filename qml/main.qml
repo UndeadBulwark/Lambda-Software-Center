@@ -71,6 +71,59 @@ ApplicationWindow {
     Component { id: installedPageItem;  InstalledPage {} }
     Component { id: updatesPageItem;   UpdatesPage {} }
 
+    // Global modals and overlays
+    ConfirmDialog {
+        id: confirmDialog
+        anchors.fill: parent
+        visible: false
+
+        onInstallConfirmed: {
+            confirmDialog.visible = false
+            progressDrawer.pkgName = confirmDialog.pkgName
+            progressDrawer.statusText = "Downloading..."
+            progressDrawer.percent = 0
+            progressDrawer.visible = true
+            mockTransaction.start()
+        }
+
+        onDialogCancelled: {
+            confirmDialog.visible = false
+        }
+
+        Timer {
+            id: mockTransaction
+            interval: 500
+            repeat: true
+            onTriggered: {
+                progressDrawer.percent += 20
+                if (progressDrawer.percent >= 40)
+                    progressDrawer.statusText = "Verifying..."
+                if (progressDrawer.percent >= 60)
+                    progressDrawer.statusText = "Installing..."
+                if (progressDrawer.percent >= 100) {
+                    mockTransaction.stop()
+                    progressDrawer.statusText = "Complete"
+                    progressDrawer.percent = 100
+                    hideTimer.start()
+                }
+            }
+        }
+
+        Timer {
+            id: hideTimer
+            interval: 2000
+            onTriggered: progressDrawer.visible = false
+        }
+    }
+
+    ProgressDrawer {
+        id: progressDrawer
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        visible: false
+    }
+
     onCurrentPageChanged: {
         switch (currentPage) {
         case "browse":    contentStack.replace(browsePageItem);  break;
