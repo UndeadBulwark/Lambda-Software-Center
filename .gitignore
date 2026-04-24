@@ -1,0 +1,34 @@
+# Build artifacts
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+_deps/
+
+# Generated
+compile_commands.json
+*.cache
+.cache/
+.clangd/
+.qtc_clangd/
+
+# Qt Creator
+*.user
+*.user.*
+
+# IDE
+.vscode/
+.idea/
+
+# QML tooling
+.qmlls*
+
+# macOS
+.DS_Store
+
+# Linux
+*.swp
+*.swo
+*~

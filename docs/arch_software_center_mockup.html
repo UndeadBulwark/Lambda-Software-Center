@@ -1,0 +1,243 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .sc-root { display: flex; height: 620px; background: var(--color-background-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); overflow: hidden; font-size: 13px; }
+  .sc-sidebar { width: 200px; min-width: 200px; background: var(--color-background-secondary); border-right: 0.5px solid var(--color-border-tertiary); display: flex; flex-direction: column; padding: 12px 0; }
+  .sc-logo { padding: 10px 16px 18px; display: flex; align-items: center; gap: 8px; }
+  .sc-logo-icon { width: 28px; height: 28px; background: #3B6D11; border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+  .sc-logo-icon svg { width: 16px; height: 16px; fill: #C0DD97; }
+  .sc-logo-text { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+  .sc-nav-group { margin-bottom: 18px; }
+  .sc-nav-label { padding: 0 16px 6px; font-size: 10px; font-weight: 500; letter-spacing: 0.08em; color: var(--color-text-tertiary); text-transform: uppercase; }
+  .sc-nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 16px; cursor: pointer; color: var(--color-text-secondary); border-radius: 0; transition: background 0.1s; }
+  .sc-nav-item:hover { background: var(--color-background-primary); color: var(--color-text-primary); }
+  .sc-nav-item.active { background: var(--color-background-primary); color: #3B6D11; font-weight: 500; border-right: 2px solid #3B6D11; }
+  .sc-nav-icon { width: 16px; height: 16px; opacity: 0.7; flex-shrink: 0; }
+  .sc-nav-item.active .sc-nav-icon { opacity: 1; }
+  .sc-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .sc-topbar { padding: 12px 20px; border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 12px; background: var(--color-background-primary); }
+  .sc-search { flex: 1; position: relative; }
+  .sc-search input { width: 100%; height: 32px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); padding: 0 12px 0 32px; font-size: 13px; color: var(--color-text-primary); outline: none; }
+  .sc-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--color-text-tertiary); }
+  .sc-source-tabs { display: flex; gap: 4px; }
+  .sc-tab { padding: 5px 12px; border-radius: var(--border-radius-md); font-size: 12px; border: 0.5px solid var(--color-border-secondary); background: transparent; cursor: pointer; color: var(--color-text-secondary); }
+  .sc-tab.active { background: #EAF3DE; color: #3B6D11; border-color: #97C459; font-weight: 500; }
+  .sc-content { flex: 1; overflow-y: auto; padding: 20px; }
+  .sc-section-title { font-size: 15px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 14px; }
+  .sc-featured { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 28px; }
+  .sc-featured-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 16px; background: var(--color-background-primary); cursor: pointer; transition: border-color 0.15s; }
+  .sc-featured-card:hover { border-color: var(--color-border-secondary); }
+  .sc-featured-card.hero { grid-column: span 2; display: flex; gap: 16px; align-items: flex-start; }
+  .sc-app-icon { width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .sc-app-icon.sm { width: 40px; height: 40px; border-radius: 10px; font-size: 18px; }
+  .sc-hero-meta { flex: 1; }
+  .sc-app-name { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 3px; }
+  .sc-app-desc { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; margin-bottom: 10px; }
+  .sc-badges { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .sc-badge { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; }
+  .badge-pacman { background: #E6F1FB; color: #185FA5; }
+  .badge-aur { background: #FAEEDA; color: #854F0B; }
+  .badge-flatpak { background: #EEEDFE; color: #534AB7; }
+  .badge-installed { background: #EAF3DE; color: #3B6D11; }
+  .sc-install-btn { margin-left: auto; padding: 6px 14px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); font-size: 12px; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+  .sc-install-btn.primary { background: #3B6D11; border-color: #3B6D11; color: #EAF3DE; }
+  .sc-pkg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(0, 1fr)); grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 28px; }
+  .sc-pkg-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px; cursor: pointer; transition: border-color 0.15s; }
+  .sc-pkg-card:hover { border-color: var(--color-border-secondary); }
+  .sc-pkg-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .sc-pkg-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+  .sc-pkg-version { font-size: 11px; color: var(--color-text-tertiary); }
+  .sc-pkg-desc { font-size: 12px; color: var(--color-text-secondary); line-height: 1.45; margin-bottom: 10px; }
+  .sc-pkg-footer { display: flex; align-items: center; justify-content: space-between; }
+  .sc-rating { font-size: 11px; color: var(--color-text-tertiary); }
+  .sc-updates-bar { background: #FAEEDA; border: 0.5px solid #FAC775; border-radius: var(--border-radius-md); padding: 10px 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .sc-updates-text { flex: 1; font-size: 12px; color: #633806; }
+  .sc-updates-btn { padding: 5px 12px; background: #854F0B; color: #FAEEDA; border: none; border-radius: var(--border-radius-md); font-size: 11px; cursor: pointer; }
+  .sc-statusbar { padding: 6px 20px; border-top: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 16px; background: var(--color-background-secondary); }
+  .sc-status-item { font-size: 11px; color: var(--color-text-tertiary); display: flex; align-items: center; gap: 5px; }
+  .sc-dot { width: 6px; height: 6px; border-radius: 50%; background: #97C459; }
+  .sc-dot.amber { background: #EF9F27; }
+  .sc-dot.purple { background: #7F77DD; }
+</style>
+
+<div class="sc-root">
+  <div class="sc-sidebar">
+    <div class="sc-logo">
+      <div class="sc-logo-icon">
+        <svg viewBox="0 0 16 16"><path d="M8 1L1 14h14L8 1zm0 3l4.5 8h-9L8 4z"/></svg>
+      </div>
+      <span class="sc-logo-text">Arch Store</span>
+    </div>
+
+    <div class="sc-nav-group">
+      <div class="sc-nav-label">Discover</div>
+      <div class="sc-nav-item active">
+        <svg class="sc-nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2zm0 4h12v2H2zm0 4h8v2H2z"/></svg>
+        Browse
+      </div>
+      <div class="sc-nav-item">
+        <svg class="sc-nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M11 1a4 4 0 010 8 4 4 0 010-8zm0 1.5a2.5 2.5 0 100 5 2.5 2.5 0 000-5zM1 13.5C1 11 4 9.5 8 9.5s7 1.5 7 4v1H1v-1z"/></svg>
+        Featured
+      </div>
+      <div class="sc-nav-item">
+        <svg class="sc-nav-icon" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v4l2.5 1.5"/></svg>
+        Recent
+      </div>
+    </div>
+
+    <div class="sc-nav-group">
+      <div class="sc-nav-label">Library</div>
+      <div class="sc-nav-item">
+        <svg class="sc-nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm2 4l-1 1 3 3 5-5-1-1-4 4-2-2z"/></svg>
+        Installed
+      </div>
+      <div class="sc-nav-item" style="position:relative;">
+        <svg class="sc-nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1v9m-4-4l4 4 4-4M3 13h10"/></svg>
+        Updates
+        <span style="margin-left:auto;background:#854F0B;color:#FAEEDA;border-radius:10px;padding:1px 7px;font-size:10px;">3</span>
+      </div>
+    </div>
+
+    <div class="sc-nav-group">
+      <div class="sc-nav-label">Sources</div>
+      <div class="sc-nav-item">
+        <span style="width:8px;height:8px;border-radius:50%;background:#185FA5;flex-shrink:0;"></span>
+        Pacman
+      </div>
+      <div class="sc-nav-item">
+        <span style="width:8px;height:8px;border-radius:50%;background:#EF9F27;flex-shrink:0;"></span>
+        AUR
+      </div>
+      <div class="sc-nav-item">
+        <span style="width:8px;height:8px;border-radius:50%;background:#7F77DD;flex-shrink:0;"></span>
+        Flatpak
+      </div>
+    </div>
+  </div>
+
+  <div class="sc-main">
+    <div class="sc-topbar">
+      <div class="sc-search">
+        <svg class="sc-search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l3 3"/></svg>
+        <input type="text" placeholder="Search packages..." />
+      </div>
+      <div class="sc-source-tabs">
+        <div class="sc-tab active">All</div>
+        <div class="sc-tab">Pacman</div>
+        <div class="sc-tab">AUR</div>
+        <div class="sc-tab">Flatpak</div>
+      </div>
+    </div>
+
+    <div class="sc-content">
+      <div class="sc-updates-bar">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="#854F0B"><path d="M8 1v9m-4-4l4 4 4-4M3 13h10"/></svg>
+        <span class="sc-updates-text">3 updates available — Firefox 126, mesa 24.1, yay 12.3</span>
+        <button class="sc-updates-btn">Update all</button>
+      </div>
+
+      <div class="sc-section-title">Featured apps</div>
+      <div class="sc-featured">
+        <div class="sc-featured-card hero">
+          <div class="sc-app-icon" style="background:#E6F1FB;">🦊</div>
+          <div class="sc-hero-meta">
+            <div class="sc-app-name">Firefox</div>
+            <div class="sc-app-desc">Fast, private and secure browser from Mozilla. Sync bookmarks, history and open tabs across all your devices.</div>
+            <div class="sc-badges">
+              <span class="sc-badge badge-pacman">pacman</span>
+              <span class="sc-badge badge-flatpak">flatpak</span>
+              <span style="font-size:11px;color:var(--color-text-tertiary);">126.0.1 · 82 MB</span>
+            </div>
+          </div>
+          <button class="sc-install-btn badge-installed" style="border-radius:var(--border-radius-md);padding:6px 14px;font-size:12px;font-weight:500;border:0.5px solid #97C459;background:#EAF3DE;color:#3B6D11;cursor:pointer;">Installed</button>
+        </div>
+
+        <div class="sc-featured-card">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div class="sc-app-icon sm" style="background:#EEEDFE;">🎮</div>
+            <div style="flex:1;">
+              <div class="sc-app-name">Heroic Launcher</div>
+              <div class="sc-app-desc" style="margin-bottom:8px;">Epic & GOG games on Linux</div>
+              <div class="sc-badges">
+                <span class="sc-badge badge-aur">AUR</span>
+                <span class="sc-badge badge-flatpak">flatpak</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sc-featured-card">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div class="sc-app-icon sm" style="background:#E1F5EE;">🎵</div>
+            <div style="flex:1;">
+              <div class="sc-app-name">Spotify</div>
+              <div class="sc-app-desc" style="margin-bottom:8px;">Music streaming client</div>
+              <div class="sc-badges">
+                <span class="sc-badge badge-aur">AUR</span>
+                <span class="sc-badge badge-flatpak">flatpak</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sc-section-title">Development tools</div>
+      <div class="sc-pkg-grid">
+        <div class="sc-pkg-card">
+          <div class="sc-pkg-header">
+            <div class="sc-app-icon sm" style="background:#E6F1FB;font-size:16px;">💻</div>
+            <div>
+              <div class="sc-pkg-name">VS Code</div>
+              <div class="sc-pkg-version">1.89.0</div>
+            </div>
+          </div>
+          <div class="sc-pkg-desc">Code editor by Microsoft. Extensions, debugger, Git integration.</div>
+          <div class="sc-pkg-footer">
+            <div style="display:flex;gap:5px;">
+              <span class="sc-badge badge-aur">AUR</span>
+              <span class="sc-badge badge-flatpak">flatpak</span>
+            </div>
+            <button class="sc-install-btn primary" style="padding:4px 10px;font-size:11px;border:none;border-radius:var(--border-radius-md);cursor:pointer;background:#3B6D11;color:#EAF3DE;">Install</button>
+          </div>
+        </div>
+
+        <div class="sc-pkg-card">
+          <div class="sc-pkg-header">
+            <div class="sc-app-icon sm" style="background:#E1F5EE;font-size:16px;">🐍</div>
+            <div>
+              <div class="sc-pkg-name">Python</div>
+              <div class="sc-pkg-version">3.12.3</div>
+            </div>
+          </div>
+          <div class="sc-pkg-desc">High-level interpreted language. Standard library included.</div>
+          <div class="sc-pkg-footer">
+            <span class="sc-badge badge-pacman">pacman</span>
+            <button class="sc-install-btn" style="padding:4px 10px;font-size:11px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);cursor:pointer;">Install</button>
+          </div>
+        </div>
+
+        <div class="sc-pkg-card">
+          <div class="sc-pkg-header">
+            <div class="sc-app-icon sm" style="background:#FAEEDA;font-size:16px;">🦀</div>
+            <div>
+              <div class="sc-pkg-name">Rust</div>
+              <div class="sc-pkg-version">1.78.0</div>
+            </div>
+          </div>
+          <div class="sc-pkg-desc">Systems language focused on safety, speed and concurrency.</div>
+          <div class="sc-pkg-footer">
+            <span class="sc-badge badge-pacman">pacman</span>
+            <button class="sc-install-btn" style="padding:4px 10px;font-size:11px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);cursor:pointer;">Install</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-statusbar">
+      <div class="sc-status-item"><div class="sc-dot"></div>Pacman ready</div>
+      <div class="sc-status-item"><div class="sc-dot amber"></div>AUR helper: yay</div>
+      <div class="sc-status-item"><div class="sc-dot purple"></div>Flatpak ready</div>
+      <div style="margin-left:auto;font-size:11px;color:var(--color-text-tertiary);">14,382 packages available</div>
+    </div>
+  </div>
+</div>
