@@ -70,3 +70,11 @@ void PackageListModel::setPackages(const QList<Package> &packages) {
 QList<Package> PackageListModel::packages() const {
     return m_packages;
 }
+
+void PackageListModel::clear() {
+    if (m_packages.isEmpty())
+        return;
+    beginResetModel();
+    m_packages.clear();
+    endResetModel();
+}

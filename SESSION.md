@@ -19,46 +19,63 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 ## Current Version Target
 
-`v0.1.0` — Backend Foundation
+`v0.2.0` — QML Application Shell ✅ **Complete**
 
 ---
 
-## What Was Completed Last Session
+## Session Closeout — Fri Apr 24
 
-- **Replaced existing test suite** with 3 new root-level test files (`tests/test_pacman.cpp`, `tests/test_aur.cpp`, `tests/test_flatpak.cpp`) that enforce a stricter API contract.
-- **Refactored `Package` struct**:
-  - Nested `enum Source { Pacman=0, AUR, Flatpak, Unknown }` and `enum InstallState`
-  - Renamed `latestVersion` → `newVersion`
-  - Added `flatpakRef` field
-  - Default-constructed values for all fields
-- **Refactored `AlpmWrapper`**:
-  - Constructor accepts `(root, dbpath, parent)` for sandboxed test DBs
-  - Auto-creates directories and copies real sync DBs into test sandbox if empty
-  - `initialize()` is idempotent and re-syncs DB registrations
-  - Added `#ifdef QT_TESTLIB_LIB` `forceUninitializedState()` test seam
-- **Refactored `PacmanBackend`**:
-  - `search()` emits signals asynchronously via `QTimer::singleShot(0)` so `QSignalSpy::wait()` works
-  - Added `forceUninitializedState()` to set a bool flag for controlled error emission in tests
-  - `listInstalled()` and `checkUpdates()` return `QList<Package>` directly + emit signals
-- **Refactored `AurClient`**:
-  - Renamed signals: `searchFinished` and `errorOccurred`
-  - Added 250ms debounce timer: rapid `search()` calls collapse into one request
-  - Test seams: `setBaseUrl()`, `injectMockResponse()` via `#ifdef QT_TESTLIB_LIB`
-- **Refactored `AurBackend`** and `FlatpakBackend` to match new interface and signal naming.
-- **Refactored `PackageListModel`** with new `newVersion` and `flatpakRef` roles.
-- **Updated `tests/CMakeLists.txt`** to build root-level test files, define `QT_TESTLIB_LIB`.
-- **Deleted obsolete `tests/backend/` directory.**
-- All 3 tests pass: `test_pacman` (14/14), `test_aur` (8/8), `test_flatpak` (12/12).
+### v0.2.0 Completed
+
+- **Implemented full QML Application Shell** matching the UI spec exactly:
+  - `main.qml`: Root `ApplicationWindow` with sidebar + main area layout. `StackView` page routing wired to sidebar nav items (`browse`, `featured`, `recent`, `installed`, `updates`).
+  - `Sidebar.qml`: Fixed 200px width, logo, three `NavGroup`s (Discover, Library, Sources), `NavItem`s with source dots, active border accent (2px right), hover states.
+  - `Topbar.qml`: Search bar + source tabs row with `Layout` positioning.
+  - `SearchBar.qml`: 250ms debounced `TextField` with Canvas-drawn search icon. Emits `onSearchTextChanged` after debounce.
+  - `SourceTabs.qml`: `All` / `Pacman` / `AUR` / `Flatpak` filter tabs with toggle styling (accent bg/border when active).
+  - `StatusBar.qml`: Three status items with colored dots + right-aligned status text.
+  - `PackageCard.qml`: Full data-bound card with `AppIcon` (initials, color-coded by source), `PackageName`, `Version`, `Description`, `BadgePill` source badge, and `Installed` state pill. Hover border transition.
+  - `BadgePill.qml`: Four variants (`pacman`, `aur`, `flatpak`, `installed`) with correct colors.
+  - `InstallButton.qml`: Ghost/primary/installed states (currently display-only).
+- **Implemented `BrowsePage.qml`**: 3-column `GridView` bound to `searchModel`, empty state message, scroll indicator. Triggers backend search when `searchQuery` changes.
+- **Wired 250ms debounced search**: `SearchBar` → `Topbar` → `main.qml` property → `BrowsePage` → `pacmanBackend.search()` / `aurBackend.search()` / `flatpakBackend.search()` respecting `sourceFilter`.
+- **Added `PackageListModel::clear()`** Q_INVOKABLE method so BrowsePage clears previous results before new search.
+- **Stubbed remaining pages** (`FeaturedPage`, `RecentPage`, `InstalledPage`, `UpdatesPage`, `DetailPage`) with placeholder text.
+- **All 3 tests still pass** (test_pacman 14/14, test_aur 8/8, test_flatpak 12/12).
+- **Builds clean**: Production target compiles with QML single compilation, `letterSpacing` uses workaround (`0.08 * font.pixelSize`), no hardcoded colors anywhere.
+- **Pushed to GitHub `main`**.
+
+### Repo state: clean, nothing uncommitted.
+
+---
+
+## Previous Session History
+
+### v0.1.0 Completed
+
+- Created GPL-3.0 LICENSE
+- Rewrote README.md: badges, condensed roadmap, build instructions, CLI examples, AI assistance section
+- Added mockup screenshot (`docs/screenshots/mockup.png`) and wired it into README
+- Replaced existing test suite with 3 root-level tests enforcing stricter API contract
+- Refactored `Package` struct: nested enums, `newVersion`, `flatpakRef`
+- Refactored `AlpmWrapper`: sandboxed init with test DB copying
+- Refactored `PacmanBackend`: async signal emission via `QTimer::singleShot(0)`
+- Refactored `AurClient`: 250ms debounce, test seams under `#ifdef QT_TESTLIB_LIB`
+- Refactored `AurBackend` and `FlatpakBackend` to match new interface
+- CLI works headlessly: `--search`, `--list-installed`, `--check-updates`
 
 ---
 
 ## Current State
 
-- The project compiles and all unit tests pass.
-- CLI works headlessly: `--search`, `--list-installed`, `--check-updates`.
-- GUI mode loads empty `ApplicationWindow` with backends and models wired to QML context.
-- `AurClient` debounces search requests; `PacmanBackend::search()` is async-signal-safe.
-- Test suite validates: sandboxed alpm init, AUR RPC search, mock Flatpak signals, error paths.
+- Full QML Application Shell functional. Running `./lambda-software-center` shows:
+  - Sidebar with navigation, active state, hover
+  - Topbar with debounced search and source tabs
+  - Browse page with 3-column card grid
+  - Status bar with source indicators
+- Search flow: type in search bar → 250ms debounce → `pacmanBackend.search()` + `aurBackend.search()` → results populate `searchModel` → GridView re-renders with `PackageCard` delegates.
+- All data flows through `PackageListModel` (backend signal → model reset → QML delegate).
+- No UI logic in C++; no business logic in QML.
 - `libflatpak` remains stubbed (not installed).
 
 ---
@@ -67,45 +84,42 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 - `checkUpdates()` slow (~20s on 1300+ packages). May need threading or caching later.
 - Flatpak backend needs `libflatpak` installed to implement properly.
+- App icons currently show source-colored circle with first initial (no AppStream integration yet).
 
 ---
 
 ## Next Task
 
-Implement the QML Application Shell (v0.2.0):
-- Wire `Sidebar.qml`, `Topbar.qml`, `SearchBar.qml`, `SourceTabs.qml`
-- Implement `BrowsePage.qml` with card grid bound to `searchModel`
-- Debounced search (250ms) in QML triggering `pacmanBackend.search()` and `aurBackend.search()`
-- Implement `PackageCard.qml` with real data bindings
+`v0.3.0` — Core Application Views:
+- Implement `InstalledPage.qml` with `installedModel` bound to `pacmanBackend.listInstalled()`
+- Implement `UpdatesPage.qml` with `updatesModel` bound to `pacmanBackend.checkUpdates()`
+- Implement `FeaturedPage.qml` with curated list from `data/featured.json`
+- Add `UpdatesBanner.qml` to top of BrowsePage when updates are available
+- Wire `UpdatesModel` and `InstalledModel`
 
 ---
 
 ## Files Touched Last Session
 
 ### Modified:
-- `src/backend/Package.h` — nested enums, new fields, defaults
-- `src/backend/IPackageBackend.h` — `Package::Source`, `errorOccurred` signal
-- `src/backend/pacman/AlpmWrapper.h` — constructor with root/dbpath, test seam
-- `src/backend/pacman/AlpmWrapper.cpp` — sandboxed init, DB copy, re-sync
-- `src/backend/pacman/PacmanBackend.h` — test seam flag
-- `src/backend/pacman/PacmanBackend.cpp` — async search, error path
-- `src/backend/aur/AurClient.h` — debounce, test seams, signal renames
-- `src/backend/aur/AurClient.cpp` — debounce impl, mock response path
-- `src/backend/aur/AurBackend.h/.cpp` — signal forwarding, return types
-- `src/backend/flatpak/FlatpakBackend.h/.cpp` — mock results, async signals
-- `src/models/PackageListModel.h/.cpp` — new roles, `newVersion`, `flatpakRef`
-- `src/models/InstalledModel.h` — `#include` path fix
-- `src/models/UpdatesModel.h` — `#include` path fix
-- `src/main.cpp` — `Package::Source`, `newVersion`, `errorOccurred`
-- `tests/CMakeLists.txt` — root-level tests, `QT_TESTLIB_LIB`
-- `tests/test_pacman.cpp` — (replaced from `tests/backend/`)
-- `tests/test_aur.cpp` — (replaced from `tests/backend/`)
-- `tests/test_flatpak.cpp` — (replaced from `tests/backend/`)
-
-### Deleted:
-- `tests/backend/test_pacman.cpp`
-- `tests/backend/test_aur.cpp`
-- `tests/backend/test_flatpak.cpp`
+- `qml/main.qml` — full shell with StackView routing, property bindings, sidebar/topbar/status bar layout
+- `qml/components/Sidebar.qml` — logo, nav groups, sources, active/hover states
+- `qml/components/NavGroup.qml` — labeled group container with padding
+- `qml/components/NavItem.qml` — nav item with source dot, count pill, active right-border accent
+- `qml/components/Topbar.qml` — topbar layout with SearchBar + SourceTabs
+- `qml/components/SearchBar.qml` — debounced TextField, Canvas search icon
+- `qml/components/SourceTabs.qml` — All/Pacman/AUR/Flatpak toggle tabs
+- `qml/components/StatusBar.qml` — status dots and labels
+- `qml/components/PackageCard.qml` — full data-bound package card
+- `qml/components/BadgePill.qml` — four variant source/state pills
+- `qml/components/InstallButton.qml` — ghost/primary/installed button states
+- `qml/pages/BrowsePage.qml` — 3-column GridView bound to searchModel, empty state, search trigger
+- `qml/pages/FeaturedPage.qml` — stub
+- `qml/pages/RecentPage.qml` — stub
+- `qml/pages/InstalledPage.qml` — stub
+- `qml/pages/UpdatesPage.qml` — stub
+- `qml/pages/DetailPage.qml` — stub
+- `src/models/PackageListModel.h/.cpp` — added `clear()` Q_INVOKABLE method
 
 ---
 
@@ -128,3 +142,4 @@ Implement the QML Application Shell (v0.2.0):
 - All UI tokens are in `qml/Theme.qml` — never hardcode colors or sizes
 - Target name in CMake is `lsc_app`; output executable is `lambda-software-center`.
 - Test seams are guarded by `#ifdef QT_TESTLIB_LIB` — never present in production builds.
+- `letterSpacing` is not supported in `Text` in Qt Quick 1.0; workaround used in `NavGroup`

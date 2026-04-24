@@ -38,6 +38,7 @@ public:
 
     void setPackages(const QList<Package> &packages);
     QList<Package> packages() const;
+    Q_INVOKABLE void clear();
 
 private:
     QList<Package> m_packages;
