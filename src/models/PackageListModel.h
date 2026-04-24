@@ -39,6 +39,7 @@ public:
     void setPackages(const QList<Package> &packages);
     QList<Package> packages() const;
     Q_INVOKABLE void clear();
+    Q_INVOKABLE void appendPackages(const QList<Package> &packages);
 
 private:
     QList<Package> m_packages;

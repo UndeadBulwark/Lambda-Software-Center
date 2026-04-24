@@ -162,6 +162,13 @@ static int runGui(int argc, char *argv[]) {
     QObject::connect(pacmanBackend, &IPackageBackend::updatesReady,
                      updatesModel, &PackageListModel::setPackages);
 
+    QObject::connect(pacmanBackend, &IPackageBackend::searchResultsReady,
+                     searchModel, &PackageListModel::appendPackages);
+    QObject::connect(aurBackend, &IPackageBackend::searchResultsReady,
+                     searchModel, &PackageListModel::appendPackages);
+    QObject::connect(flatpakBackend, &IPackageBackend::searchResultsReady,
+                     searchModel, &PackageListModel::appendPackages);
+
     QQmlApplicationEngine engine;
 
     bool systemDarkMode = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;

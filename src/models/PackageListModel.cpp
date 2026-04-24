@@ -71,6 +71,16 @@ QList<Package> PackageListModel::packages() const {
     return m_packages;
 }
 
+void PackageListModel::appendPackages(const QList<Package> &packages) {
+    if (packages.isEmpty())
+        return;
+    int first = m_packages.size();
+    int last = first + packages.size() - 1;
+    beginInsertRows(QModelIndex(), first, last);
+    m_packages.append(packages);
+    endInsertRows();
+}
+
 void PackageListModel::clear() {
     if (m_packages.isEmpty())
         return;
@@ -78,3 +88,4 @@ void PackageListModel::clear() {
     m_packages.clear();
     endResetModel();
 }
+
