@@ -6,9 +6,9 @@ Auto-detects system dark/light theme and switches palette live without restart.
 
 ![Lambda Software Center — Dark Theme](docs/screenshots/UI-Dark-Theme.png)
 
-![Version](https://img.shields.io/badge/version-v0.3.0-blue)
+![Version](https://img.shields.io/badge/version-v0.4.0-blue)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
-![Tests](https://img.shields.io/badge/tests-34%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-47%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 ## Architecture highlights

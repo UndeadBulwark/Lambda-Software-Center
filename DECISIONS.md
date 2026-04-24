@@ -101,3 +101,23 @@ A log of non-obvious architectural and design decisions. Before suggesting an al
 **Why:** A Flatpak sandbox cannot access libalpm or the host package database. Attempting to do so would either fail silently or require broad filesystem exceptions that defeat the purpose of sandboxing.
 
 **Trade-off:** The Flatpak version is a reduced-capability build. Users who want full functionality install from AUR.
+
+---
+
+## D-011 — Modal overlays are global ApplicationWindow children, not StackView items
+
+**Decision:** `ConfirmDialog` and `ProgressDrawer` are declared as direct children of `ApplicationWindow` in `main.qml`, outside the `StackView`. Child pages reference them via `Window.window.confirmDialog`. They are not pushed onto the `StackView`.
+
+**Why:** Modal overlays must render above all routed page content regardless of StackView depth. If they were StackView items, they would be clipped by the StackView bounds and could be obscured by sibling StackView pages. Global z-ordering via `z` property is simpler and more reliable when the overlay sits above the StackView in the visual parent hierarchy.
+
+**Trade-off:** Pages must know the global IDs or use `Window.window` lookup. This couples the page to the parent window structure. We mitigate by using consistent naming conventions (`confirmDialog`, `progressDrawer`) and ensuring all pages are children of the same window.
+
+---
+
+## D-012 — Mock transaction flow validates UI before backend integration
+
+**Decision:** Before wiring `ConfirmDialog` → `TransactionManager` → `libalpm`, we implemented a mock transaction using a QML `Timer` inside `main.qml`. The Timer simulates download → verify → install → complete over 3 seconds, driving the `ProgressDrawer` visuals.
+
+**Why:** Backend transaction logic for libalpm is complex (privilege escalation via polkit, transaction lifecycle, error callbacks). Building the UI with mocked signals lets us validate the entire visual chain—dialog → progress → completion → auto-hide—without the risk of system package changes during development. When the real backend is ready, we replace the Timer's `onTriggered` with `transactionManager.install(pkgId)`; the `ProgressDrawer` bindings remain unchanged.
+
+**Trade-off:** The mock is dead code once backend integration is complete. It lives in `main.qml` as a temporary `Timer`. We will remove it in the commit that wires real transactions.
