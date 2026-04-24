@@ -1,4 +1,5 @@
 #include "AlpmWrapper.h"
+#include "PackageSearchUtils.h"
 #include <QStringList>
 #include <QDir>
 #include <QFile>
@@ -165,6 +166,8 @@ QList<Package> AlpmWrapper::search(const QString &query) {
         }
         alpm_list_free(found);
     }
+
+    sortPackagesBySearchRelevance(results, query);
 
     return results;
 }

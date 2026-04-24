@@ -1,4 +1,5 @@
 #include "AurClient.h"
+#include "PackageSearchUtils.h"
 
 #include <QNetworkReply>
 #include <QJsonDocument>
@@ -70,6 +71,7 @@ void AurClient::onReplyFinished(QNetworkReply *reply) {
         results.append(parsePackage(v.toObject()));
     }
 
+    sortPackagesBySearchRelevance(results, m_pendingQuery);
     emit searchFinished(results);
 }
 
@@ -94,6 +96,7 @@ void AurClient::onMockSearch(const QString &query) {
     for (const QJsonValue &v : resultsArray) {
         results.append(parsePackage(v.toObject()));
     }
+    sortPackagesBySearchRelevance(results, m_pendingQuery);
     emit searchFinished(results);
 }
 #endif

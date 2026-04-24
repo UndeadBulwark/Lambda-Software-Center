@@ -129,6 +129,29 @@ private slots:
         QCOMPARE(p.source, Package::Source::Unknown);
     }
 
+    void test_search_sorts_exact_match_first()
+    {
+        QList<Package> results = m_wrapper->search("linux");
+        QVERIFY(!results.isEmpty());
+        QCOMPARE(results.first().name, QString("linux"));
+    }
+
+    void test_search_sorts_prefix_before_contains()
+    {
+        QList<Package> results = m_wrapper->search("linux");
+        QVERIFY(results.size() >= 2);
+        // 'linux' should come before 'linux-firmware' (exact vs prefix)
+        int idxExact = -1;
+        int idxPrefix = -1;
+        for (int i = 0; i < results.size(); ++i) {
+            if (results.at(i).name == "linux") idxExact = i;
+            if (results.at(i).name == "linux-firmware") idxPrefix = i;
+        }
+        QVERIFY(idxExact != -1);
+        QVERIFY(idxPrefix != -1);
+        QVERIFY(idxExact < idxPrefix);
+    }
+
 private:
     AlpmWrapper *m_wrapper = nullptr;
 };

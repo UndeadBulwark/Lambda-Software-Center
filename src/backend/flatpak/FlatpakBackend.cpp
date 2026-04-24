@@ -1,4 +1,5 @@
 #include "FlatpakBackend.h"
+#include "PackageSearchUtils.h"
 #include <QTimer>
 
 FlatpakBackend::FlatpakBackend(QObject *parent)
@@ -22,7 +23,10 @@ void FlatpakBackend::search(const QString &query) {
         p.source = Package::Source::Flatpak;
         p.state = Package::InstallState::NotInstalled;
         p.flatpakRef = "app/org.mozilla.firefox/x86_64/stable";
-        emit searchResultsReady(QList<Package>() << p);
+        QList<Package> results;
+        results.append(p);
+        sortPackagesBySearchRelevance(results, query);
+        emit searchResultsReady(results);
     });
 }
 
