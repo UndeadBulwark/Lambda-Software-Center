@@ -8,6 +8,13 @@ Rectangle {
     height: 56
     color: Theme.bgPrimary
 
+    // Active tab index: 0=All, 1=Pacman, 2=AUR, 3=Flatpak
+    property int activeTab: 0
+    readonly property int activeFilter:
+        (activeTab === 0) ? -1 :
+        (activeTab === 1) ? 0  :
+        (activeTab === 2) ? 1  : 2
+
     signal searchTriggered(string text)
     signal sourceFilterChanged(int filter)
 
@@ -35,7 +42,11 @@ Rectangle {
         SourceTabs {
             id: sourceTabs
             Layout.alignment: Qt.AlignVCenter
-            onFilterChanged: function(filter) { topbar.sourceFilterChanged(filter) }
+            activeIndex: topbar.activeTab
+            onIndexClicked: function(index) {
+                topbar.activeTab = index;
+                topbar.sourceFilterChanged(topbar.activeFilter);
+            }
         }
     }
 }

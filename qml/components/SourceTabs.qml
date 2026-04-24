@@ -5,15 +5,15 @@ Row {
     id: sourceTabs
     spacing: 4
 
-    signal filterChanged(int filter)
-    property int activeFilter: -1
+    signal indexClicked(int index)
+    property int activeIndex: 0
 
     Repeater {
         model: [
-            { label: "All",     value: -1 },
-            { label: "Pacman",  value: 0 },
-            { label: "AUR",     value: 1 },
-            { label: "Flatpak", value: 2 }
+            { label: "All",     filter: -1 },
+            { label: "Pacman",  filter: 0 },
+            { label: "AUR",     filter: 1 },
+            { label: "Flatpak", filter: 2 }
         ]
 
         delegate: Rectangle {
@@ -21,33 +21,28 @@ Row {
             width: tabText.implicitWidth + 24
             height: 28
             radius: Theme.radiusMd
-            color: sourceTabs.activeFilter === modelData.value ? Theme.accentSurface : "transparent"
+            color: sourceTabs.activeIndex === index ? Theme.accentSurface : "transparent"
 
             Text {
                 id: tabText
                 anchors.centerIn: parent
                 text: modelData.label
                 font.pixelSize: 12
-                font.weight: sourceTabs.activeFilter === modelData.value ? Font.Medium : Font.Normal
-                color: sourceTabs.activeFilter === modelData.value ? Theme.accent : Theme.textSecondary
+                font.weight: sourceTabs.activeIndex === index ? Font.Medium : Font.Normal
+                color: sourceTabs.activeIndex === index ? Theme.accent : Theme.textSecondary
             }
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: {
-                    sourceTabs.activeFilter = modelData.value;
-                    sourceTabs.filterChanged(modelData.value);
-                }
+                onClicked: sourceTabs.indexClicked(index)
             }
 
-            // Border for all tabs; only visible on inactive (active tab has bg fill)
             Rectangle {
                 anchors.fill: parent
                 radius: parent.radius
                 color: "transparent"
-                border.color: sourceTabs.activeFilter === modelData.value ? Theme.accentLight : Theme.borderSecondary
+                border.color: sourceTabs.activeIndex === index ? Theme.accentLight : Theme.borderSecondary
                 border.width: 1
-                visible: true
             }
         }
     }

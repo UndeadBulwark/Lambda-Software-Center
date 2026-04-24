@@ -21,6 +21,8 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 `v0.2.0` — QML Application Shell ✅ **Complete**
 
+**Also completed:** System theme detection + dark/light palette support
+
 ---
 
 ## Session Closeout — Fri Apr 24
@@ -42,8 +44,21 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 - **Added `PackageListModel::clear()`** Q_INVOKABLE method so BrowsePage clears previous results before new search.
 - **Stubbed remaining pages** (`FeaturedPage`, `RecentPage`, `InstalledPage`, `UpdatesPage`, `DetailPage`) with placeholder text.
 - **All 3 tests still pass** (test_pacman 14/14, test_aur 8/8, test_flatpak 12/12).
-- **Builds clean**: Production target compiles with QML single compilation, `letterSpacing` uses workaround (`0.08 * font.pixelSize`), no hardcoded colors anywhere.
+- **Builds clean**: Production target compiles with QML single compilation, no hardcoded colors anywhere.
 - **Pushed to GitHub `main`**.
+
+### QOL Fixes (post v0.2.0)
+
+1. **Tab highlight bug fix**: Moved `activeTab` to `Topbar` as single source of truth. `SourceTabs` is now pure — delegates derive highlight from `activeIndex` comparison, emit `indexClicked(index)` on click. No tab holds independent state.
+2. **Removed "Browse packages" heading**: Redundant heading below toolbar removed from `BrowsePage.qml`. Sidebar already indicates active section.
+3. **Larger sidebar labels**: `NavGroup` labels increased from 10px to 11px, added `font.letterSpacing: 1.2`, added `topPadding: 8` for visual separation between groups.
+
+### Theme Detection + Dark/Light Mode (QOL addition)
+
+- **`src/main.cpp`**: Added `QStyleHints` include, `systemDarkMode` detection via `QGuiApplication::styleHints()->colorScheme()`, `colorSchemeChanged` signal connected to update context property live.
+- **`qml/Theme.qml`**: Added `isDark` property (defaults to light), all neutral tokens become conditional ternary expressions (bgPrimary, bgSecondary, textPrimary, textSecondary, textTertiary, borderSecondary, borderTertiary). Brand/accent colors stay identical in both modes; surface backgrounds darken in dark mode.
+- **`qml/main.qml`**: `Binding` element connects `Theme.isDark` to `systemDarkMode` context property, so the app responds to live system theme changes without restart.
+- **Pushed:** `c32c1f5` on `main`.
 
 ---
 
@@ -71,6 +86,8 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
   - Topbar with debounced search and source tabs
   - Browse page with 3-column card grid
   - Status bar with source indicators
+  - **Theme auto-detects light/dark mode from system palette**
+  - **Live theme switching works without restart**
 - Search flow: type in search bar → 250ms debounce → `pacmanBackend.search()` + `aurBackend.search()` → results populate `searchModel` → GridView re-renders with `PackageCard` delegates.
 - All data flows through `PackageListModel` (backend signal → model reset → QML delegate).
 - No UI logic in C++; no business logic in QML.
@@ -83,7 +100,6 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 - `checkUpdates()` slow (~20s on 1300+ packages). May need threading or caching later.
 - Flatpak backend needs `libflatpak` installed to implement properly.
 - App icons currently show source-colored circle with first initial (no AppStream integration yet).
-- **Theme singleton**: uses `qmlRegisterSingletonType` from `main.cpp` pointing to QRC URL. All QML files import `LambdaSoftwareCenter` module. This is the working approach tested and confirmed.
 
 ---
 
@@ -101,8 +117,9 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 ## Files Touched Last Session
 
 ### Modified:
-- `src/main.cpp` — added `qmlRegisterSingletonType` for Theme singleton, `QML warnings` diagnostic hook, fixed QRC load path
-- `qml/main.qml` — full shell with StackView routing, LambdaSoftwareCenter import
+- `src/main.cpp` — added `qmlRegisterSingletonType` for Theme singleton, `QML warnings` diagnostic hook, fixed QRC load path, added `QStyleHints` include, `systemDarkMode` detection + `colorSchemeChanged` signal
+- `qml/Theme.qml` — added `isDark` property, all neutral color tokens are conditional dark/light expressions
+- `qml/main.qml` — full shell with StackView routing, `LambdaSoftwareCenter` import, live `Binding` for `Theme.isDark`
 - `qml/components/Sidebar.qml` — logo, nav groups, sources, active/hover states
 - `qml/components/NavGroup.qml` — labeled group container, no circular children binding
 - `qml/components/NavItem.qml` — nav item with source dot, count pill, fixed `property var sourceDot: null`
@@ -144,3 +161,4 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 - Test seams are guarded by `#ifdef QT_TESTLIB_LIB` — never present in production builds.
 - `letterSpacing` is not supported in `Text` in Qt Quick 1.0; workaround used in `NavGroup`
 - **Singleton pattern**: Theme registered via `qmlRegisterSingletonType(QUrl("qrc:/LambdaSoftwareCenter/qml/Theme.qml"), "LambdaSoftwareCenter", 1, 0, "Theme")` in C++ root context. All QML files import `LambdaSoftwareCenter`.
+- **Theme detection**: `QStyleHints::colorScheme()` → `systemDarkMode` context property → `Theme.isDark` → conditional palette swaps live across all components.
