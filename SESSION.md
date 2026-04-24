@@ -19,9 +19,26 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 ## Current Version Target
 
-`v0.3.0` — Package Detail View ✅ **Complete**
+`v0.3.1` — Search fixes and UI polish ✅ **Complete**
 
-**Also completed:** v0.2.0 Application Shell, system theme detection + dark/light palette support, multi-source search accumulation fix + model unit tests
+**Also completed:** v0.3.0 Package Detail View, v0.2.0 Application Shell, system theme detection + dark/light palette support, multi-source search accumulation fix + model unit tests, search relevance sorting
+
+---
+
+## Session Closeout — Fri Apr 24 (v0.3.1 tag)
+
+### v0.3.1 — Bugfix Release
+
+Tagged and released on GitHub.
+
+**Fixes included**:
+1. **Multi-source search accumulation** — `searchModel` now accumulates results from pacman + AUR + Flatpak via `appendPackages()` instead of being disconnected entirely.
+2. **Search relevance sorting** — exact match (1000 pts) → prefix (900) → name contains (800) → description (100). Applied in all three backends before emission.
+3. **PackageCard badge layout** — "Installed" pill no longer overflows card bounds; source + installed badges sit side-by-side in a `Row`.
+
+**Test suite**: 47 tests across 4 targets (17 pacman + 10 aur + 12 flatpak + 8 models).
+
+**Pushed to GitHub**: tag `v0.3.1`, release at `https://github.com/UndeadBulwark/Lambda-Software-Center/releases/tag/v0.3.1`
 
 ---
 
