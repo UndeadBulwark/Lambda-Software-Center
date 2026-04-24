@@ -12,12 +12,12 @@ protected:
 public:
     virtual ~IPackageBackend() = default;
 
-    virtual void search(const QString &query) = 0;
-    virtual void install(const QString &pkgId) = 0;
-    virtual void remove(const QString &pkgId) = 0;
-    virtual QList<Package> listInstalled() = 0;
-    virtual QList<Package> checkUpdates() = 0;
-    virtual Package::Source source() const = 0;
+    Q_INVOKABLE virtual void search(const QString &query) = 0;
+    Q_INVOKABLE virtual void install(const QString &pkgId) = 0;
+    Q_INVOKABLE virtual void remove(const QString &pkgId) = 0;
+    Q_INVOKABLE virtual QList<Package> listInstalled() = 0;
+    Q_INVOKABLE virtual QList<Package> checkUpdates() = 0;
+    Q_INVOKABLE virtual Package::Source source() const = 0;
 
 signals:
     void searchResultsReady(QList<Package> results);

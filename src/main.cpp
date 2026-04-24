@@ -154,6 +154,13 @@ static int runGui(int argc, char *argv[]) {
     FlatpakBackend *flatpakBackend = new FlatpakBackend();
 
     PackageListModel *searchModel = new PackageListModel();
+    PackageListModel *installedModel = new PackageListModel();
+    PackageListModel *updatesModel = new PackageListModel();
+
+    QObject::connect(pacmanBackend, &IPackageBackend::installedListReady,
+                     installedModel, &PackageListModel::setPackages);
+    QObject::connect(pacmanBackend, &IPackageBackend::updatesReady,
+                     updatesModel, &PackageListModel::setPackages);
 
     QQmlApplicationEngine engine;
 
@@ -167,6 +174,8 @@ static int runGui(int argc, char *argv[]) {
         });
 
     engine.rootContext()->setContextProperty("searchModel", searchModel);
+    engine.rootContext()->setContextProperty("installedModel", installedModel);
+    engine.rootContext()->setContextProperty("updatesModel", updatesModel);
     engine.rootContext()->setContextProperty("pacmanBackend", pacmanBackend);
     engine.rootContext()->setContextProperty("aurBackend", aurBackend);
     engine.rootContext()->setContextProperty("flatpakBackend", flatpakBackend);
