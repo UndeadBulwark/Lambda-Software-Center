@@ -2,16 +2,18 @@
 
 A native Qt6/QML package manager for Arch Linux — pacman, AUR, and Flatpak in one interface.
 
+Auto-detects system dark/light theme and switches palette live without restart.
+
 ![Lambda Software Center — Dark Theme](docs/screenshots/UI-Dark-Theme.png)
 
-![Version](https://img.shields.io/badge/version-v0.1.0-blue)
+![Version](https://img.shields.io/badge/version-v0.2.0-blue)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
 ![Tests](https://img.shields.io/badge/tests-34%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 ## Architecture highlights
 
-libalpm and libflatpak are linked C libraries called directly, not shell commands. This is what makes transaction progress, dependency resolution preview, and typed error handling possible.
+libalpm is a linked C library called directly, not through shell commands. libflatpak is stubbed pending installation. Direct calls are what make transaction progress, dependency resolution preview, and typed error handling possible.
 
 AUR is treated as a last-resort escape hatch, not a first-class install path. PKGBUILD review is mandatory and non-skippable by design.
 
@@ -22,7 +24,7 @@ The UI layer is pure QML with no logic. All backend logic lives in C++ with a cl
 | Version | Theme | Key Deliverable |
 |---|---|---|
 | 0.1.0 | Backend Foundation | ✅ All three backends work headlessly |
-| 0.2.0 | Application Shell | Navigable UI with live search data |
+| 0.2.0 | Application Shell | ✅ Navigable UI with live search data, system theme auto-detection |
 | 0.3.0 | Package Detail View | Full metadata, AppStream, screenshots |
 | 0.4.0 | Install and Remove | System changes work end to end |
 | 0.5.0 | Update Manager | Full upgrade flow across all backends |
@@ -36,7 +38,7 @@ See [docs/lambda-software-center-roadmap.md](docs/lambda-software-center-roadmap
 
 ## Building
 
-Dependencies: Qt 6.6+, libalpm, libflatpak (optional, stubbed if absent), polkit, CMake 3.27+.
+Dependencies: Qt 6.7+, libalpm, libflatpak (optional, stubbed if absent), polkit, CMake 3.27+.
 
 ```bash
 cmake -B build -S .
@@ -76,7 +78,7 @@ Updates available: 12
 ## Docs
 
 - [Version Roadmap](docs/lambda-software-center-roadmap.md) — Full feature timeline from v0.1.0 to v1.0.0.
-- [UI Specification](docs/lambda-software-center-ui-spec.md) — Design tokens, component catalog, and the reference mockup.
+- [UI Specification](docs/lambda-software-center-ui-spec.md) — Design tokens, component catalog, dark/light palette, and layout rules.
 - [DECISIONS.md](DECISIONS.md) — Architectural decisions already made. Do not relitigate anything recorded here.
 
 ## AI Assistance
