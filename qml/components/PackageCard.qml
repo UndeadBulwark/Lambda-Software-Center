@@ -10,6 +10,10 @@ Rectangle {
         id: cardMouse
         anchors.fill: parent
         hoverEnabled: true
+        onClicked: {
+            if (StackView.view)
+                StackView.view.push("qrc:/LambdaSoftwareCenter/qml/pages/DetailPage.qml", { packageData: model })
+        }
     }
 
     Rectangle {
