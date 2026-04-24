@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QtQml>
+#include <QStyleHints>
 #include <QCommandLineParser>
 #include <QCommandLineOption>
 #include <QEventLoop>
@@ -154,28 +155,17 @@ static int runGui(int argc, char *argv[]) {
 
     PackageListModel *searchModel = new PackageListModel();
 
-    QObject::connect(pacmanBackend, &IPackageBackend::searchResultsReady,
-                     searchModel, [searchModel](const QList<Package> &results) {
-                         QList<Package> merged = searchModel->packages();
-                         merged.append(results);
-                         searchModel->setPackages(merged);
-                     });
-
-    QObject::connect(aurBackend, &IPackageBackend::searchResultsReady,
-                     searchModel, [searchModel](const QList<Package> &results) {
-                         QList<Package> merged = searchModel->packages();
-                         merged.append(results);
-                         searchModel->setPackages(merged);
-                     });
-
-    QObject::connect(flatpakBackend, &IPackageBackend::searchResultsReady,
-                     searchModel, [searchModel](const QList<Package> &results) {
-                         QList<Package> merged = searchModel->packages();
-                         merged.append(results);
-                         searchModel->setPackages(merged);
-                     });
-
     QQmlApplicationEngine engine;
+
+    bool systemDarkMode = QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+    engine.rootContext()->setContextProperty("systemDarkMode", systemDarkMode);
+
+    QObject::connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
+        &engine, [&engine](Qt::ColorScheme scheme) {
+            engine.rootContext()->setContextProperty("systemDarkMode",
+                scheme == Qt::ColorScheme::Dark);
+        });
+
     engine.rootContext()->setContextProperty("searchModel", searchModel);
     engine.rootContext()->setContextProperty("pacmanBackend", pacmanBackend);
     engine.rootContext()->setContextProperty("aurBackend", aurBackend);

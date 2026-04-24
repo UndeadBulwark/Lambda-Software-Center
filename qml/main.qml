@@ -11,6 +11,13 @@ ApplicationWindow {
     title: "Lambda Software Center"
     color: Theme.bgPrimary
 
+    // Live theme binding: C++ signal updates systemDarkMode → Theme switches palette
+    Binding {
+        target: Theme
+        property: "isDark"
+        value: systemDarkMode ?? false
+    }
+
     property string currentPage: "browse"
     property string searchQuery: ""
     property int activeSourceFilter: -1 // -1: All, 0: Pacman, 1: AUR, 2: Flatpak

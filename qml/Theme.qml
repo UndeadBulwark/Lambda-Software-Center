@@ -1,35 +1,36 @@
 pragma Singleton
 import QtQuick
-import LambdaSoftwareCenter
 
 QtObject {
-    // Accent
-    readonly property color accent:           "#3B6D11"
-    readonly property color accentLight:      "#97C459"
-    readonly property color accentSurface:    "#EAF3DE"
+    property bool isDark: false
+
+    // Accent stays the same in light and dark — functional brand color
+    readonly property color accent:           isDark ? "#3B6D11" : "#3B6D11"
+    readonly property color accentLight:      isDark ? "#97C459" : "#97C459"
+    readonly property color accentSurface:    isDark ? "#2A3A1C" : "#EAF3DE"
 
     // AUR
-    readonly property color aur:              "#854F0B"
-    readonly property color aurSurface:       "#FAEEDA"
-    readonly property color aurBorder:        "#FAC775"
+    readonly property color aur:              isDark ? "#854F0B" : "#854F0B"
+    readonly property color aurSurface:       isDark ? "#3A2A1A" : "#FAEEDA"
+    readonly property color aurBorder:        isDark ? "#FAC775" : "#FAC775"
 
     // Flatpak
-    readonly property color flatpak:          "#534AB7"
-    readonly property color flatpakSurface:   "#EEEDFE"
-    readonly property color flatpakDot:       "#7F77DD"
+    readonly property color flatpak:          isDark ? "#534AB7" : "#534AB7"
+    readonly property color flatpakSurface:     isDark ? "#2A1A3A" : "#EEEDFE"
+    readonly property color flatpakDot:       isDark ? "#7F77DD" : "#7F77DD"
 
     // Pacman
-    readonly property color pacman:           "#185FA5"
-    readonly property color pacmanSurface:  "#E6F1FB"
+    readonly property color pacman:           isDark ? "#185FA5" : "#185FA5"
+    readonly property color pacmanSurface:     isDark ? "#1A2A3A" : "#E6F1FB"
 
-    // Neutrals (light mode defaults)
-    readonly property color bgPrimary:        "#FFFFFF"
-    readonly property color bgSecondary:      "#F5F5F5"
-    readonly property color borderSecondary:  "#DEDEDE"
-    readonly property color borderTertiary:   "#EBEBEB"
-    readonly property color textPrimary:      "#1A1A1A"
-    readonly property color textSecondary:    "#555555"
-    readonly property color textTertiary:     "#999999"
+    // Neutrals
+    readonly property color bgPrimary:        isDark ? "#1C1C1E" : "#FFFFFF"
+    readonly property color bgSecondary:      isDark ? "#242426" : "#F5F5F5"
+    readonly property color borderSecondary:  isDark ? "#4A4A4C" : "#DEDEDE"
+    readonly property color borderTertiary:   isDark ? "#3A3A3C" : "#EBEBEB"
+    readonly property color textPrimary:      isDark ? "#F0F0F0" : "#1A1A1A"
+    readonly property color textSecondary:    isDark ? "#B0B0B0" : "#555555"
+    readonly property color textTertiary:     isDark ? "#888888" : "#999999"
 
     // Status dots
     readonly property color dotGreen:         "#97C459"
