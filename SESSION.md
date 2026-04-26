@@ -19,9 +19,9 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 ## Current Version Target
 
-`v0.5.0` — Update Manager (starting)
+`v0.5.2` — Flatpak Backend Integration (libflatpak)
 
-**Completed:** v0.4.0 Install and Remove (full install/remove for pacman + AUR, polkit helper, orphan cleanup, install reason repair), v0.3.1 Search fixes and UI polish, v0.3.0 Package Detail View, v0.2.0 Application Shell, system theme detection + dark/light palette support, multi-source search accumulation fix + model unit tests, search relevance sorting
+**Completed:** v0.5.2 Flatpak backend (libflatpak), v0.5.1 AUR makepkg hang fix + `alpm_pkg_load full=1` fix, v0.5.0 Update Manager, v0.4.0 Install and Remove, v0.3.1 Search fixes and UI polish, v0.3.0 Package Detail View, v0.2.0 Application Shell
 
 ---
 
@@ -52,6 +52,48 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 ---
 
 ## Session Closeout — Sat Apr 25
+
+### v0.5.1 — AUR Build Dep Resolution Fix + install-local File Extraction Fix
+
+**Bug fixed:** `alpm_pkg_load(handle, filepath, 0, 0, &pkg)` in `do_install_local()` passed `full=0`, causing libalpm to load only metadata (`.PKGINFO`), not the archive file data. `alpm_trans_commit()` would register the package in the local DB but extract zero files — empty `files` entry, no executables on disk. Every AUR install via the app was silently broken.
+
+**Fix:** Changed `full=0` to `full=1` on line 627 of `src/lsc-helper.cpp`. Verified with `hello-test` package: files now appear in `pacman -Ql`, binary is on disk, `files` DB entry is populated.
+
+**Also fixed:** CachyOS repo PGP signature errors were causing `pacman -Sy` and `makepkg --syncdeps` to fail. Fixed with `pacman-key --init && pacman-key --populate archlinux cachyos` and gnupg directory permissions.
+
+Fixed the `makepkg --syncdeps` hang: makepkg calls `sudo pacman` internally with no terminal for password input, causing indefinite hangs. Replaced with pre-makepkg dep resolution via our own polkit helper.
+
+**C++ Backend:**
+- **`AurBuilder::extractDeps()`** — New static method. Regex-matches single-line `depends=()` and `makedepends=()` arrays from PKGBUILD text. Strips version constraints (`>=`, `>`, `<`, `=`) from dep strings. Skips entries containing `:` (architecture qualifiers like `lib32:gcc`) — they're left for makepkg to handle. Deduplicates and returns `QStringList`.
+- **`AurBuilder::makepkg()`** — Removed `--syncdeps` flag. Now runs `makepkg --noconfirm` only.
+- **`AlpmWrapper::isPackageInstalled()`** — New method. Strips version constraints from input, then calls `alpm_db_get_pkg()` on the local DB. Returns `true`/`false`. Does NOT strip from colon (that's an architecture qualifier).
+- **`AurBackend::continueBuild()`** — Completely rewritten:
+  1. Resets `m_isRemove = false` explicitly
+  2. Extracts deps from cached PKGBUILD content via `AurBuilder::extractDeps()`
+  3. Filters through `AlpmWrapper::isPackageInstalled()` — only missing deps remain
+  4. If no missing deps: calls `startMakepkg()` directly
+  5. If deps missing: sets `m_buildPhase = BuildPhase::DepInstall`, creates one-shot `QMetaObject::Connection` to `transactionFinished`, disconnects on both success and failure, calls `m_tm->installDeps(missingDeps)`
+  6. On dep install success: disconnects, calls `startMakepkg()`
+  7. On dep install failure: disconnects, emits `installFinished` with error
+- **`AurBackend`** — Added `BuildPhase` enum (`Idle`, `DepInstall`, `Makepkg`), `m_cachedPkgbuildContent`, `m_depInstallConnection`, `startMakepkg()` private method. `pkgbuildReady` handler now caches content before re-emitting. `transactionFinished` handler guards against `DepInstall` phase (one-shot connection handles it). `cancelBuild()` now also disconnects the dep install connection and resets `m_buildPhase`.
+- **`TransactionManager::installDeps()`** — New `Q_INVOKABLE`. Accepts `QStringList` of package names. Sets `m_isInstallDeps = true`, all other flags false. Calls `pkexec lsc-helper install-deps pkg1 pkg2 ...`. Routes through `transactionFinished` (not `syncFinished` or `upgradeFinished`). All other methods reset `m_isInstallDeps = false`.
+- **`lsc-helper.cpp`** — New `install-deps` action + `do_install_deps()` function:
+  - Accepts multiple package names
+  - Looks up each in sync DBs; skips not-found with debug log (not fatal — may be AUR packages)
+  - Checks local DB; skips already-installed deps
+  - Batch adds found packages via `alpm_add_pkg()` in single transaction
+  - Commits with `ALLDEPS` flag
+  - Does NOT call `alpm_pkg_set_reason(EXPLICIT)` — build deps should remain DEPEND
+
+**Tests:**
+- 5 new AUR tests: `test_extract_deps_basic`, `test_extract_deps_strips_versions`, `test_extract_deps_skips_colon_qualifier`, `test_extract_deps_empty`, `test_extract_deps_multiline` (QSKIP'd)
+- 3 new pacman tests: `test_is_package_installed_strips_version`, `test_is_package_installed_unknown_returns_false`, `test_is_package_installed_live_system`
+- 80 total tests (30 pacman + 22 aur + 10 flatpak + 8 models + 15 transaction); 2 known flatpak failures
+
+**Known limitations (documented in DECISIONS.md D-020):**
+- `extractDeps()` only handles single-line arrays. Multi-line arrays and variable substitution are not parsed. `test_extract_deps_multiline` is QSKIP'd.
+- Dep strings containing `:` (architecture qualifiers) are skipped entirely, not mangled.
+- If a dep is missed, `makepkg --noconfirm` fails with a clear error about missing dependencies.
 
 ### v0.5.0 — Update Manager
 
@@ -378,9 +420,10 @@ Tagged and released on GitHub.
 - `checkUpdates()` slow (~20s on 1300+ packages). May need threading or caching later.
 - Flatpak backend needs `libflatpak` installed to implement properly (search/install/updates all stubbed).
 - Cancel button blocked due to alpm lock file orphan problem (deferred to v0.9.0).
-- v1.0.0 TODO: create `lsc-errors.h` with named constants for all custom ERRCODE values and full alpm_errno_t mapping to user-facing hints (currently bare integers)
+- v1.0.0 TODO: create `lsc-errors.h` with named constants for all custom ERRCODE values and full alpm_errno_t mapping to user-facing hints
 - AUR version comparison uses heuristic string split, not `alpm_pkg_vercmp()` — may produce false results for unusual version schemes
 - AUR RPC `/info` supports up to ~200 packages per request — no batching yet for users with many AUR packages
+- `startMakepkg()` takes `pkgName` by value (captured in one-shot lambda) to prevent race where `transactionFinished` handler clears `m_pendingInstallPkgName` before makepkg runs
 
 ---
 
@@ -395,14 +438,18 @@ Tagged and released on GitHub.
 
 ---
 
-## Files Touched Last Session
+## Files Touched This Session
 
-### Modified:
-- `qml/main.qml` — added ConfirmDialog + ProgressDrawer global overlays, mock transaction Timer
-- `qml/pages/DetailPage.qml` — Install button MouseArea opens ConfirmDialog with packageData
-- `qml/components/ProgressDrawer.qml` — full implementation: animated slide-up, progress bar, status text, error state
-- `qml/components/ConfirmDialog.qml` — new modal overlay: package header, metadata, dependency list, Install/Cancel buttons
-- `CMakeLists.txt` — added ConfirmDialog.qml to QML_FILES
+### Modified This Session:
+- `src/lsc-helper.cpp` — Fixed `alpm_pkg_load(handle, filepath, 0, 0, &pkg)` to `alpm_pkg_load(handle, filepath, 1, 0, &pkg)` (`full=0` → `full=1`) so file data is loaded for extraction. Without this, `alpm_trans_commit()` registered packages in the local DB but extracted zero files.
+- `src/backend/flatpak/FlatpakBackend.h` — Full rewrite with `FlatpakInstallation*` handle, thread safety via `QMutex`, lazy init `ensureInstallation()`, async worker methods (`doSearch`, `doListInstalled`, `doCheckUpdates`, `doInstall`, `doRemove`), remote ref cache, `setTransactionManager`.
+- `src/backend/flatpak/FlatpakBackend.cpp` — Full rewrite: `search()` lists remote refs via `flatpak_installation_list_remote_refs_sync()`, filters by name/description in-memory, caches for session. `listInstalled()` via `flatpak_installation_list_installed_refs_by_kind(APP)`. `checkUpdates()` via `flatpak_installation_list_installed_refs_for_update()`. `install()` and `remove()` use `FlatpakTransaction` API (in-process, no pkexec). All blocking libflatpak calls run on `QtConcurrent::run()` threads. GLib `signals` macro conflict resolved with `#undef signals`. Helper methods `installedRefToPackage()` and `remoteRefToPackage()` as static functions.
+- `CMakeLists.txt` — Made `flatpak` pkg-config REQUIRED, added `Qt6::Concurrent`, `HAVE_FLATPAK=1` always defined, removed fallback stub warning.
+- `src/main.cpp` — Wire `flatpakBackend->updatesReady()` to `updatesModel->appendPackages()`, wire `flatpakBackend->installedListReady()` to `installedModel->appendPackages()`.
+- `qml/main.qml` — Flatpak install/remove routing in `ConfirmDialog` (source === 2 → `flatpakBackend.install()`/`remove()`), Flatpak update routing in UpdatesPage, `flatpakBackend.checkUpdates()` after sync, `Connections` block for `installProgress/Finished` and `removeProgress/Finished` wired to ProgressDrawer.
+- `tests/test_flatpak.cpp` — Fixed `test_backend_initializes` to call `listInstalled()` first (triggers lazy init).
+- `DECISIONS.md` — Added D-021 (`alpm_pkg_load full=1` requirement for file extraction)
+- `SESSION.md` — Updated
 
 ---
 

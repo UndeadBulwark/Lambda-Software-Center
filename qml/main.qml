@@ -100,6 +100,8 @@ ApplicationWindow {
             var pkgName = pkg.packageId.split("@")[0]
             if (pkg.source === 1) {
                 aurBackend.install(pkg.packageId)
+            } else if (pkg.source === 2) {
+                flatpakBackend.install(pkg.packageId)
             } else {
                 transactionManager.systemUpgrade([pkgName])
             }
@@ -146,6 +148,8 @@ ApplicationWindow {
             confirmDialog.visible = false
             if (confirmDialog.pkgSourceInt === 1)
                 aurBackend.install(confirmDialog.pkgId)
+            else if (confirmDialog.pkgSourceInt === 2)
+                flatpakBackend.install(confirmDialog.pkgId)
             else
                 transactionManager.install(confirmDialog.pkgId, confirmDialog.pkgSourceInt)
         }
@@ -154,6 +158,8 @@ ApplicationWindow {
             confirmDialog.visible = false
             if (confirmDialog.pkgSourceInt === 1)
                 aurBackend.remove(confirmDialog.pkgId)
+            else if (confirmDialog.pkgSourceInt === 2)
+                flatpakBackend.remove(confirmDialog.pkgId)
             else
                 transactionManager.remove(confirmDialog.pkgId, confirmDialog.pkgSourceInt)
         }
@@ -188,6 +194,44 @@ ApplicationWindow {
 
         onReviewCancelled: {
             aurBackend.cancelBuild(pkgbuildDialog.pkgName)
+        }
+    }
+
+    Connections {
+        target: flatpakBackend
+        function onInstallProgress(pkgId, percent, step) {
+            progressDrawer.pkgName = pkgId
+            progressDrawer.percent = percent
+            progressDrawer.statusText = step
+            if (!progressDrawer.visible)
+                progressDrawer.visible = true
+        }
+        function onInstallFinished(pkgId, success, error) {
+            if (success) {
+                progressDrawer.percent = 100
+                progressDrawer.statusText = "Complete"
+            } else {
+                progressDrawer.isError = true
+                progressDrawer.statusText = error || "Install failed"
+            }
+            hideTimer.start()
+        }
+        function onRemoveProgress(pkgId, percent, step) {
+            progressDrawer.pkgName = pkgId
+            progressDrawer.percent = percent
+            progressDrawer.statusText = step
+            if (!progressDrawer.visible)
+                progressDrawer.visible = true
+        }
+        function onRemoveFinished(pkgId, success, error) {
+            if (success) {
+                progressDrawer.percent = 100
+                progressDrawer.statusText = "Complete"
+            } else {
+                progressDrawer.isError = true
+                progressDrawer.statusText = error || "Remove failed"
+            }
+            hideTimer.start()
         }
     }
 
@@ -282,6 +326,7 @@ ApplicationWindow {
 
                 pacmanBackend.checkUpdates()
                 aurBackend.checkUpdates()
+                flatpakBackend.checkUpdates()
             } else {
                 progressDrawer.isError = true
                 progressDrawer.statusText = error || "Sync failed"
@@ -306,12 +351,13 @@ ApplicationWindow {
             if (success) {
                 progressDrawer.percent = 100
                 progressDrawer.statusText = "Upgrade complete"
-                hideTimer.start()
-                pacmanBackend.checkUpdates()
-                aurBackend.checkUpdates()
-            } else {
-                progressDrawer.isError = true
-                progressDrawer.statusText = error || "Upgrade failed"
+                 hideTimer.start()
+                 pacmanBackend.checkUpdates()
+                 aurBackend.checkUpdates()
+                 flatpakBackend.checkUpdates()
+             } else {
+                 progressDrawer.isError = true
+                 progressDrawer.statusText = error || "Upgrade failed"
             }
         }
     }

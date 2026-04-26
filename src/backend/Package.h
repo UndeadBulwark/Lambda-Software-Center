@@ -27,7 +27,8 @@ struct Package {
     int votes = 0;           // AUR only
     float popularity = 0.0f; // AUR only
     float rating = 0.0f;     // Flatpak ODRS only
-    QString flatpakRef;      // Flatpak only
+    QString flatpakRef;      // Flatpak only — full ref string e.g. "app/org.gimp.GIMP/x86_64/stable"
+    QString flatpakRemote;  // Flatpak only — remote name e.g. "flathub"
     QString gitUrl;          // AUR only — https://aur.archlinux.org/<name>.git
 };
 

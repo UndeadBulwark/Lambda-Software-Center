@@ -7,10 +7,10 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Test)
+find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Concurrent Test)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ALPM REQUIRED libalpm)
-pkg_check_modules(FLATPAK libflatpak)
+pkg_check_modules(FLATPAK REQUIRED flatpak)
 
 set(SOURCES
     src/main.cpp
@@ -54,6 +54,7 @@ target_include_directories(lsc_app PRIVATE
     ${CMAKE_SOURCE_DIR}/src/models
     ${CMAKE_SOURCE_DIR}/src/service
     ${ALPM_INCLUDE_DIRS}
+    ${FLATPAK_INCLUDE_DIRS}
 )
 
 target_link_libraries(lsc_app PRIVATE
@@ -62,24 +63,20 @@ target_link_libraries(lsc_app PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Network
+    Qt6::Concurrent
     ${ALPM_LIBRARIES}
+    ${FLATPAK_LIBRARIES}
 )
 
-target_compile_definitions(lsc_app PRIVATE LSC_BUILD_DIR="${CMAKE_BINARY_DIR}")
+target_compile_definitions(lsc_app PRIVATE
+    LSC_BUILD_DIR="${CMAKE_BINARY_DIR}"
+    HAVE_FLATPAK=1
+)
 
 # lsc-helper: standalone root CLI for alpm transactions, launched via pkexec
 add_executable(lsc-helper src/lsc-helper.cpp)
 target_include_directories(lsc-helper PRIVATE ${ALPM_INCLUDE_DIRS})
 target_link_libraries(lsc-helper PRIVATE ${ALPM_LIBRARIES})
-
-if(FLATPAK_FOUND)
-    target_include_directories(lsc_app PRIVATE ${FLATPAK_INCLUDE_DIRS})
-    target_link_libraries(lsc_app PRIVATE ${FLATPAK_LIBRARIES})
-    target_compile_definitions(lsc_app PRIVATE HAVE_FLATPAK=1)
-else()
-    message(WARNING "libflatpak not found. Flatpak backend will be stubbed.")
-    target_compile_definitions(lsc_app PRIVATE HAVE_FLATPAK=0)
-endif()
 
 qt_add_qml_module(lsc_app
     URI LambdaSoftwareCenter

@@ -165,9 +165,13 @@ static int runGui(int argc, char *argv[]) {
 
     QObject::connect(pacmanBackend, &IPackageBackend::installedListReady,
                      installedModel, &PackageListModel::setPackages);
+    QObject::connect(flatpakBackend, &IPackageBackend::installedListReady,
+                     installedModel, &PackageListModel::appendPackages);
     QObject::connect(pacmanBackend, &IPackageBackend::updatesReady,
                      updatesModel, &PackageListModel::setPackages);
     QObject::connect(aurBackend, &IPackageBackend::updatesReady,
+                     updatesModel, &PackageListModel::appendPackages);
+    QObject::connect(flatpakBackend, &IPackageBackend::updatesReady,
                      updatesModel, &PackageListModel::appendPackages);
 
     QObject::connect(pacmanBackend, &IPackageBackend::searchResultsReady,

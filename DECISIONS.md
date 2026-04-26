@@ -166,6 +166,21 @@ A log of non-obvious architectural and design decisions. Before suggesting an al
 
 ---
 
+## D-020 — AUR build dep resolution uses regex extraction from PKGBUILD text
+
+**Decision:** `AurBuilder::extractDeps()` regex-matches single-line `depends=()` and `makedepends=()` arrays from PKGBUILD content. Dep strings containing `:` (architecture qualifiers like `lib32:gcc`) are skipped entirely and left for makepkg to handle. Version constraints (`>=`, `>`, `<`, `=`) are stripped before lookup. Missing deps are installed as a single batched `pkexec lsc-helper install-deps` transaction (one polkit prompt) with `ALPM_PKG_REASON_DEPEND` (not EXPLICIT). The `m_isRemove` flag is explicitly reset before the dep install phase. A one-shot `QMetaObject::Connection` is used for the dep install `transactionFinished` handler, disconnected on both success and failure paths. A `BuildPhase` state enum (`Idle`, `DepInstall`, `Makepkg`) guards the existing `transactionFinished` handler against firing during the dep install phase.
+
+**Why:** `makepkg --syncdeps` hangs because it calls `sudo pacman` with no terminal for password input. Resolving deps ourselves via the polkit helper eliminates the hang and gives us a single auth prompt for all deps. The regex approach is a pragmatic v0.4.0 choice — it handles the vast majority of PKGBUILDs which use single-line arrays. Multi-line arrays and variable substitution are rare enough that failing with a clear makepkg error is acceptable.
+
+**Trade-offs:**
+- Multi-line `depends=()` arrays (one dep per line) are not parsed. Test case `test_extract_deps_multiline` is `QSKIP`'d. makepkg will fail with a clear "missing dependency" error if a dep is missed.
+- Bash variable substitution in dep lists (e.g. `depends=($deps)`) is not handled. Same fallback: makepkg error.
+- The `:` in dep strings is an architecture qualifier (e.g. `lib32:gcc`), not a version constraint. We skip these deps entirely rather than mangling the name.
+- Build deps are installed with DEPEND reason, not EXPLICIT. This means they'll be flagged as orphans by `findOrphans()` if the AUR package is later removed. This is correct behavior — build deps should be cleanable.
+- A proper bash parser for PKGBUILD arrays is deferred to a future version.
+
+---
+
 ## D-017 — System upgrade uses alpm_sync_sysupgrade; selective upgrade uses alpm_add_pkg per-package
 
 **Decision:** The `upgrade` helper action supports two modes: (1) full system upgrade with `alpm_sync_sysupgrade()` (marks all upgradable packages), (2) selective upgrade with explicit `alpm_add_pkg()` for N named packages. Both use `alpm_trans_init(ALLDEPS)`, `alpm_trans_prepare`, and `alpm_trans_commit` with the same progress callbacks as install.
@@ -193,18 +208,34 @@ A log of non-obvious architectural and design decisions. Before suggesting an al
 
 ---
 
-## D-016 — AUR install flow: git clone → PKGBUILD review → makepkg → install-local
+## D-016 — AUR install flow: git clone → PKGBUILD review → dep install → makepkg → install-local
 
-**Decision:** AUR packages are installed via a multi-step pipeline: `AurBuilder.gitClone()` clones the AUR repo into `~/.cache/lambda-software-center/aur/<name>/`, the PKGBUILD is read from disk and shown in a `PkgbuildDialog` (mandatory review per D-009), `AurBuilder.makepkg()` runs `makepkg --syncdeps --noconfirm`, and the resulting `.pkg.tar.zst` is installed via `pkexec lsc-helper install-local <filepath>` (same libalpm transaction path as regular installs).
+**Decision:** AUR packages are installed via a multi-step pipeline: `AurBuilder.gitClone()` clones the AUR repo into `~/.cache/lambda-software-center/aur/<name>/`, the PKGBUILD is read from disk and shown in a `PkgbuildDialog` (mandatory review per D-009), `AurBuilder.extractDeps()` resolves missing makedepends/depends from PKGBUILD text, missing deps are installed via `pkexec lsc-helper install-deps` (single batched transaction, one polkit prompt), then `AurBuilder.makepkg --noconfirm` builds the package, and the resulting `.pkg.tar.zst` is installed via `pkexec lsc-helper install-local <filepath>` (same libalpm transaction path as regular installs).
 
-**Why:** This matches the standard Arch AUR workflow. `makepkg --syncdeps` handles build dependency resolution internally (calling sudo pacman as needed). The PKGBUILD review step is mandatory per D-009. Using `install-local` with `alpm_pkg_load` + `alpm_trans_commit` keeps the install path in libalpm rather than shelling out to `pacman -U`.
+**Why:** `makepkg --syncdeps` calls `sudo pacman` internally with no terminal for password input, causing indefinite hangs. Resolving build deps ourselves via the polkit helper eliminates the hang and gives us a single auth prompt for all deps.
 
 **Trade-offs:**
-- `makepkg --syncdeps` will trigger its own polkit prompt (via sudo) for build deps. Two auth prompts per AUR install is unavoidable without a custom makepkg wrapper.
-- Build dir is deleted-and-recloned on every install (no incremental pull). Simpler, avoids merge conflicts, negligible cost for small AUR repos.
+- Build dep resolution uses regex extraction from PKGBUILD text. Multi-line arrays and bash variable substitution are not handled — `test_extract_deps_multiline` is QSKIP'd. If `extractDeps()` misses a dependency, `makepkg --noconfirm` (without `--syncdeps`) fails with a clear missing dependency error, which is acceptable for v0.4.0. A proper bash parser for PKGBUILD arrays is deferred.
+- Dep strings containing `:` (architecture qualifiers like `lib32:gcc`) are skipped entirely and left for makepkg to handle — we don't mangle the package name.
+- Build deps are installed with `ALPM_PKG_REASON_DEPEND` (not set to EXPLICIT), matching pacman's behavior. Deps not found in sync DBs are skipped (they may be AUR packages).
+- Both `AlpmWrapper::isPackageInstalled()` and `lsc-helper install-deps` resolve virtual package names via `alpm_pkg_get_provides()` — e.g., `p7zip` is satisfied by the `7zip` package which provides `p7zip`. Without this, replaced packages that still appear in PKGBUILD depends would cause makepkg to fail.
+- `lsc-helper install-deps` returns error code 100 (`LSC_ERR_NOT_FOUND`) when requested deps are not found in any sync DB and not already installed locally, instead of silently reporting success.
+- `startMakepkg()` takes `pkgName` as a parameter (captured by value in the one-shot dep install lambda) instead of reading `m_pendingInstallPkgName`, preventing a race condition where `m_pendingInstallPkgName` could be cleared by a concurrent `transactionFinished` handler before makepkg runs.
 - Search result cache (`QHash<QString, Package>`, lifetime of object, no expiry) is used to resolve `gitUrl` at install time. User must search before installing; error emitted if package not in cache.
 - `alpm_pkg_set_reason(EXPLICIT)` is called post-install inside the helper (same as D-015), so AUR packages are always correctly marked.
-- AUR update from UpdatesPage: routes through `aurBackend.install()` which triggers the full PKGBUILD review flow. ConfirmDialog (showing dependencies/size) is skipped for updates from the Updates page — PKGBUILD review is the mandatory gate per D-009. This is acceptable because: (1) the user already knows what they're updating, (2) PKGBUILD review provides the security gate, (3) dependency info is less relevant for updates.
+- AUR update from UpdatesPage: routes through `aurBackend.install()` which triggers the full PKGBUILD review flow. ConfirmDialog (showing dependencies/size) is skipped for updates from the Updates page — PKGBUILD review is the mandatory gate per D-009.
+
+---
+
+## D-021 — alpm_pkg_load full=1 required for file extraction in install-local
+
+**Decision:** `alpm_pkg_load()` in `do_install_local()` must pass `full=1` (third parameter), not `full=0`. With `full=0`, libalpm loads only the package metadata (`.PKGINFO`) and not the archive file data. When `alpm_trans_commit()` subsequently runs, it registers the package in the local DB but has no file entries to extract — resulting in an empty `files` database entry and no files on disk.
+
+**Why:** This was the root cause of every AUR package install via the app silently failing to install files. Packages appeared in `pacman -Q` but `pacman -Ql` showed no files and no executables were placed on the filesystem. The `full=0` parameter was originally set because it seemed sufficient for adding a package to a transaction (metadata-only is enough for dependency resolution), but `alpm_trans_commit` needs the full archive loaded to extract files.
+
+**Trade-offs:**
+- `full=1` loads the entire `.pkg.tar.zst` into memory. For large packages (326MB for azeron-software), this means a brief memory spike. This is acceptable because the alternative (broken installs) is far worse, and the memory is freed after the transaction completes.
+- The install reason is initially set to DEPEND (because `ALPM_TRANS_FLAG_ALLDEPS` is used), then corrected to EXPLICIT via `alpm_pkg_set_reason()` after commit. This is the existing pattern from D-015.
 
 ---
 
@@ -217,3 +248,18 @@ A log of non-obvious architectural and design decisions. Before suggesting an al
 **Trade-offs:**
 - The `m_isRemove` flag is reset after each transaction. If two rapid remove operations are queued, only the last one's signal routing is correct. Since `TransactionManager::busy()` prevents concurrent operations, this is safe.
 - `PacmanBackend` now also emits `removeProgress` during remove operations (previously silent). This means the ProgressDrawer will show step labels like "Removing" during pacakge removal, which is useful UX.
+
+---
+
+## D-022 — Flatpak backend uses libflatpak directly, FlatpakTransaction for install/remove
+
+**Decision:** The Flatpak backend uses libflatpak C API directly (not shelling out to `flatpak` CLI). Search uses `flatpak_installation_list_remote_refs_sync()` per remote with in-memory filtering. Install and remove use `FlatpakTransaction` API (`add_install`/`add_uninstall` + `run`) — no polkit, no `lsc-helper`. After successful install/remove, `flatpak_installation_run_triggers()` is called to deploy .desktop files and icons to the application launcher.
+
+**Why:** Same reasoning as D-001/D-002: shelling out to the CLI is brittle, prevents progress reporting, and loses error structure. `FlatpakTransaction` handles auth via the desktop portal internally, so no privilege escalation is needed. `run_triggers()` ensures newly-installed apps appear in the launcher immediately.
+
+**Trade-offs:**
+- All libflatpak calls are synchronous and blocking. They run on `QtConcurrent::run()` threads and emit results via signals on the main thread.
+- The `QMutex m_mutex` guards `FlatpakInstallation*` — `FlatpakInstallation` is not thread-safe, so all operations lock the mutex. This means Flatpak operations are serialized, which is acceptable since the UI already prevents concurrent operations.
+- GLib's `signals` macro conflicts with Qt's `#define signals Q_SIGNALS`. Workaround: `#undef signals` before including `<flatpak/flatpak.h>`, then `#define signals Q_SIGNALS` after.
+- `flatpak_transaction_add_install()` requires a remote name (e.g., "flathub"), not just a ref string. The remote name is stored in `Package::flatpakRemote` during search/list and looked up via `m_refToRemote` hash at install time. If the hash misses (e.g., install from UpdatesPage without prior search), `findRemoteForRef()` falls back to querying each remote via `fetch_remote_ref_sync()`.
+- Search caches all remote refs for the session (`m_cachedRemoteRefs`). First search of a large remote (Flathub ~50k refs) takes 5-10 seconds; subsequent searches are instant.

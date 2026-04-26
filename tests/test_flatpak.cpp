@@ -23,6 +23,7 @@ private slots:
 
     void test_backend_initializes()
     {
+        m_backend->listInstalled();
         QVERIFY(m_backend->isInitialized());
     }
 
