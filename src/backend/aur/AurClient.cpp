@@ -29,7 +29,13 @@ void AurClient::search(const QString &query) {
     m_debounceTimer->start();
 }
 
+void AurClient::info(const QStringList &pkgNames) {
+    m_pendingInfoNames = pkgNames;
+    performInfo(pkgNames);
+}
+
 void AurClient::performSearch(const QString &query) {
+    m_pendingIsInfo = false;
 #ifdef QT_TESTLIB_LIB
     if (m_useMock) {
         onMockSearch(query);
@@ -40,6 +46,25 @@ void AurClient::performSearch(const QString &query) {
     QUrl url(QString("%1/search/%2")
              .arg(m_baseUrl)
              .arg(QString::fromUtf8(QUrl::toPercentEncoding(query))));
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    m_networkManager->get(request);
+}
+
+void AurClient::performInfo(const QStringList &pkgNames) {
+    m_pendingIsInfo = true;
+#ifdef QT_TESTLIB_LIB
+    if (m_useMock) {
+        onMockSearch(pkgNames.join(","));
+        return;
+    }
+#endif
+
+    QStringList args;
+    for (const QString &name : pkgNames)
+        args << QStringLiteral("arg[]=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(name)));
+
+    QUrl url(QString("%1/info?%2").arg(m_baseUrl).arg(args.join("&")));
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     m_networkManager->get(request);
@@ -72,7 +97,10 @@ void AurClient::onReplyFinished(QNetworkReply *reply) {
     }
 
     sortPackagesBySearchRelevance(results, m_pendingQuery);
-    emit searchFinished(results);
+    if (m_pendingIsInfo)
+        emit infoFinished(results);
+    else
+        emit searchFinished(results);
 }
 
 #ifdef QT_TESTLIB_LIB
@@ -97,7 +125,10 @@ void AurClient::onMockSearch(const QString &query) {
         results.append(parsePackage(v.toObject()));
     }
     sortPackagesBySearchRelevance(results, m_pendingQuery);
-    emit searchFinished(results);
+    if (m_pendingIsInfo)
+        emit infoFinished(results);
+    else
+        emit searchFinished(results);
 }
 #endif
 
@@ -114,6 +145,7 @@ Package AurClient::parsePackage(const QJsonObject &obj) const {
     QString urlPath = obj.value("URLPath").toString();
     if (!urlPath.isEmpty()) {
         p.iconUrl = QUrl("https://aur.archlinux.org" + urlPath);
+        p.gitUrl = QStringLiteral("https://aur.archlinux.org") + urlPath;
     }
     return p;
 }

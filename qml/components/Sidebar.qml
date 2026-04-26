@@ -9,6 +9,7 @@ Rectangle {
 
     signal requestPage(string page)
     property string currentPage: "browse"
+    property int updateCount: 0
 
     Column {
         id: sidebarCol
@@ -93,33 +94,11 @@ Rectangle {
                 width: parent.width
                 text: "Updates"
                 active: sidebar.currentPage === "updates"
-                count: 0
+                count: sidebar.updateCount
                 onClicked: sidebar.requestPage("updates")
             }
         }
 
-        // Sources group
-        NavGroup {
-            width: parent.width
-            label: "Sources"
 
-            NavItem {
-                width: parent.width
-                text: "Pacman"
-                sourceDot: Theme.pacman
-            }
-
-            NavItem {
-                width: parent.width
-                text: "AUR"
-                sourceDot: Theme.aur
-            }
-
-            NavItem {
-                width: parent.width
-                text: "Flatpak"
-                sourceDot: Theme.flatpakDot
-            }
-        }
     }
 }

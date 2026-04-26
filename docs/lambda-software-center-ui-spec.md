@@ -18,6 +18,7 @@ The aesthetic is **refined utilitarian**: clean, dense but not cluttered, inform
 | Token | Value | Usage |
 |---|---|---|
 | `accent` | `#3B6D11` | Primary buttons, active nav item text, active nav border, installed badge text |
+| `accent-dark` | `#2F560D` | Primary button pressed state |
 | `accent-light` | `#97C459` | Active tab border, installed badge border |
 | `accent-surface` | `#EAF3DE` | Active tab background, installed badge background, primary button text |
 
@@ -94,6 +95,9 @@ All text uses the system sans-serif. No decorative fonts. No icon fonts — use 
 | Status bar text | `11px` | `400` | `text-tertiary` |
 | Updates count pill | `10px` | `400` | `aur-surface` |
 | Tab text | `12px` | `400` / `500` active | (see SourceTab) |
+| Detail page title | `20px` | `500` | `text-primary` |
+| Confirm dialog title | `18px` | `500` | `text-primary` |
+| Version picker text | `12px` | `400` | `text-secondary` |
 
 Letter spacing on nav labels: `0.08em`.
 Line height on descriptions: `1.5`. On package descriptions: `1.45`.
@@ -125,6 +129,17 @@ Line height on descriptions: `1.5`. On package descriptions: `1.45`.
 | Search input height | `32px` |
 | Search icon left offset | `10px` |
 | Search input left padding | `32px` (to clear icon) |
+| Detail page padding | `20px` |
+| Detail header margin-bottom | `20px` |
+| Detail grid column spacing | `24px` |
+| Detail grid row spacing | `10px` |
+| Confirm dialog width | `420px` |
+| Confirm dialog padding | `24px` |
+| Confirm dialog button height | `32px` |
+| Progress drawer height (collapsed) | `0` |
+| Progress drawer bar height | `6px` |
+| Version picker width | `150px` |
+| Version picker height | `30px` |
 
 ---
 
@@ -542,14 +557,31 @@ margin-bottom: 28px
 border: 0.5px solid --color-border-tertiary
 border-radius: --border-radius-lg
 padding: 14px
+padding-left: 16px
 cursor: pointer
 transition: border-color 0.15s
+overflow: hidden
 ```
+
+`padding-left` is `16px` (not `14px`) to clear the source accent bar.
+`overflow: hidden` is required so the accent bar's corners are clipped by the card's border-radius.
 
 **Hover:**
 ```
 border-color: --color-border-secondary
 ```
+
+**Source accent bar:**
+
+A `2px` wide vertical bar pinned to the left edge of the card, full card height. Color is determined by the package source:
+
+| Source | Color |
+|---|---|
+| pacman | `#185FA5` |
+| aur | `#854F0B` |
+| flatpak | `#534AB7` |
+
+Each card has exactly one source, so the bar is always a single color. The bar sits inside the card's `overflow: hidden` container — no extra border or wrapper needed.
 
 Internal structure:
 
@@ -607,6 +639,220 @@ border-radius: 50%
 Colors: green `#97C459`, amber `#EF9F27`, purple `#7F77DD`.
 
 Package count sits `margin-left: auto`, `font-size: 11px`, `color: text-tertiary`.
+
+---
+
+---
+
+### DetailPage
+
+A routed page that replaces the content area when a `PackageCard` is clicked. Displays full package metadata, action controls, and a detail grid.
+
+```
+background: --color-background-primary
+padding: 20px
+overflow-y: auto
+```
+
+Children stacked vertically:
+
+**Back button row:**
+```
+height: 36px
+display: flex
+align-items: center
+cursor: pointer
+```
+Contains: `←` arrow text (`13px`, `text-secondary`, hover → `text-primary`), "Back" label (`13px`, `text-secondary`, hover → `text-primary`).
+Clicking pops the `StackView`.
+
+**Header row:**
+```
+display: flex
+align-items: flex-start
+gap: 16px
+margin-bottom: 20px
+```
+Contains: `AppIcon` (large, 52×52px, source-colored background), name/version/badges column, action controls column (`VersionPicker` + Install/Remove button, `align: vertical-center`).
+
+Name column children:
+- Package name: `20px`, weight `500`, `text-primary`
+- Version + badges `RowLayout`: version text (`11px`, `text-tertiary`), source `BadgePill`, installed `BadgePill` (visible when installed)
+
+**Action controls row** (`align: vertical-center`, `spacing: 8px`):
+- `VersionPicker` (see below)
+- Install button: visible when not installed. Primary style (`background: #3B6D11`, `color: #EAF3DE`, `border-radius: 6px`, `padding: 6px 14px`, `font-size: 12px`). Pressed state: `background: #2F560D`.
+- Remove button: visible when installed. Ghost style (`background: transparent`, `border: 0.5px solid --color-border-secondary`, `color: text-secondary`, `border-radius: 6px`, `padding: 6px 14px`, `font-size: 12px`). Hover: background fills to `bgSecondary`.
+
+**Divider:**
+```
+height: 0.5px
+background: --color-border-tertiary
+margin-bottom: 20px
+```
+
+**Description:**
+```
+font-size: 12px
+color: text-secondary
+line-height: 1.45
+margin-bottom: 24px
+```
+Falls back from `longDescription` to `description`.
+
+**"Details" heading:**
+```
+font-size: 15px
+font-weight: 500
+color: text-primary
+margin-bottom: 14px
+```
+
+**Detail grid** (`GridLayout`, 2 columns, `columnSpacing: 24px`, `rowSpacing: 10px`):
+
+| Key label | Value |
+|---|---|
+| "Installed size" | `formatBytes(installedSize)` |
+| "Download size" | `formatBytes(downloadSize)` |
+| "Source" | `badgeForSource(source)` |
+| "Version" | `package.version` |
+| "Dependencies" | Comma-separated list (wrappable) |
+| "Rating" | `X.X / 5` (only visible when `source === Flatpak && rating > 0`) |
+
+Key labels: `12px`, `text-tertiary`. Values: `12px`, `text-secondary`.
+
+---
+
+### VersionPicker
+
+A styled `ComboBox` for selecting which version of a package to install. Shown only when multiple versions are available or when the package is not yet installed.
+
+```
+implicit-width: 150px
+implicit-height: 30px
+border: 0.5px solid --color-border-secondary
+border-radius: 6px
+background: --color-background-primary
+```
+
+**Content text:** `12px`, `text-secondary`, left padding `10px`.
+**Indicator:** Canvas-drawn chevron-down, `12×12px`, `text-tertiary`, `stroke-width: 1.5`.
+**Popup:** Positioned `2px` below the picker. Same width as picker. Background: `bgPrimary`, `border-radius: 6px`, `border: 0.5px solid borderSecondary`.
+**Delegate:** `ItemDelegate`, height `30px`. Text `12px`, `text-primary`, left padding `10px`. Hover: `bgSecondary`.
+
+---
+
+### ConfirmDialog
+
+A modal overlay centered on the window. Used for both install and remove confirmations.
+
+```
+anchors: fill parent
+background: #AA000000 (dark scrim)
+z: 100
+```
+
+**Properties:**
+- `pkgName: string`
+- `pkgVersion: string`
+- `pkgSource: string` (badge variant name: "pacman", "aur", "flatpak")
+- `pkgDependencies: list<string>`
+- `pkgSize: string`
+- `mode: string` — `"install"` or `"remove"`
+
+**Signals:**
+- `installConfirmed()`
+- `removeConfirmed()`
+- `dialogCancelled()`
+
+**Dialog card:**
+```
+width: 420px
+border-radius: --border-radius-lg
+background: --color-background-primary
+border: 0.5px solid --color-border-secondary
+z: 101
+```
+
+Card content (padding `24px`, spacing `20px`):
+
+**Header:**
+- Title: `"Install " + pkgName` (install mode) or `"Remove " + pkgName` (remove mode). `18px`, weight `500`, `text-primary`.
+- Subtitle row: source `BadgePill` + version text (`13px`, `text-tertiary`)
+
+**Divider:** `height: 0.5px`, `border-tertiary`
+
+**Metadata rows** (visible only in install mode):
+- Row with `MetaLine` items: "Download" → `pkgSize`, "Size on disk" → `pkgSize`
+
+**Dependencies section** (visible only in install mode and `pkgDependencies.length > 0`):
+- Header: `"Dependencies (N)"`, `13px`, weight `500`, `text-secondary`
+- Container: `bgSecondary`, `border-radius: 6px`, `border: 0.5px solid borderTertiary`, padded `8px`
+- Items: `12px`, `text-secondary`, vertical spacing `4px`
+
+**Actions row** (right-aligned):
+- Primary button: label is `"Install"` or `"Remove"` depending on `mode`. Style: `background: #3B6D11`, `color: #EAF3DE`, `border-radius: 6px`, `height: 32px`, `padding: 0 24px`. Pressed: `background: #2F560D`. On click: hides dialog, emits `installConfirmed()` or `removeConfirmed()`.
+- Cancel button: `background: bgSecondary`, `border: 0.5px solid borderSecondary`, `color: text-secondary`, `border-radius: 6px`, `height: 32px`. On click: hides dialog, emits `dialogCancelled()`.
+
+**Scrim click:** Clicking the dark scrim background emits `dialogCancelled()`.
+
+**Fade animation:** `Behavior on opacity: NumberAnimation { duration: 120 }`
+
+---
+
+### ProgressDrawer
+
+A panel anchored to the bottom of the main area (above the statusbar). Shows transaction progress during install, remove, or update operations.
+
+```
+anchors: bottom of main area, full width
+background: --color-background-primary
+border: 0.5px solid --color-border-secondary
+border-radius: --border-radius-lg (top corners)
+z: 50
+```
+
+**Properties:**
+- `pkgName: string`
+- `statusText: string` — step label ("Downloading...", "Verifying...", "Installing...", "Removing...", "Complete")
+- `percent: int` — 0 to 100
+- `isError: bool`
+
+**Slide animation:**
+```
+Behavior on height: NumberAnimation { duration: 200; easing: InOutQuad }
+height: visible ? contentHeight + 24 : 0
+```
+
+**Content** (padded `12px` top, `20px` horizontal, spacing `8px`):
+
+**Top row:** Package name (`14px`, weight `500`, `text-primary`), dash separator (`14px`, `text-tertiary`), status text (`14px`, `text-secondary` or `aur` when `isError`).
+
+**Progress bar track:** Full width, `6px` height, `border-radius: 3px`, `background: bgSecondary`, `border: 0.5px solid borderTertiary`.
+**Fill:** Width bound to `percent / 100 * track.width`, animated (`Behavior on width: NumberAnimation { duration: 300; easing: InOutQuad }`). Color: `accent` normally, `aur` when `isError`.
+
+**Percentage text:** `11px`, weight `500`, `text-tertiary`.
+
+---
+
+### RemoveButton
+
+A ghost-style button displayed in the DetailPage header row when a package is installed.
+
+```
+background: transparent
+border: 0.5px solid --color-border-secondary
+color: --color-text-secondary
+border-radius: 6px
+padding: 6px 14px
+font-size: 12px
+height: 30px
+cursor: pointer
+```
+
+**Hover:** background fills to `bgSecondary`, border stays `borderSecondary`.
+**Pressed:** no additional visual change (hover state persists).
+Label: "Remove".
 
 ---
 

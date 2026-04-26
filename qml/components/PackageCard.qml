@@ -6,14 +6,13 @@ Rectangle {
     radius: Theme.radiusLg
     color: Theme.bgPrimary
 
+    signal packageClicked(var pkg)
+
     MouseArea {
         id: cardMouse
         anchors.fill: parent
         hoverEnabled: true
-        onClicked: {
-            if (StackView.view)
-                StackView.view.push("qrc:/LambdaSoftwareCenter/qml/pages/DetailPage.qml", { packageData: model })
-        }
+        onClicked: packageCard.packageClicked(model)
     }
 
     Rectangle {

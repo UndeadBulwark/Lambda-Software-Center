@@ -7,12 +7,14 @@ QtObject {
     // Accent stays the same in light and dark — functional brand color
     readonly property color accent:           isDark ? "#3B6D11" : "#3B6D11"
     readonly property color accentLight:      isDark ? "#97C459" : "#97C459"
+    readonly property color accentDark:       isDark ? "#2A4A0D" : "#2F560D"
     readonly property color accentSurface:    isDark ? "#2A3A1C" : "#EAF3DE"
 
     // AUR
     readonly property color aur:              isDark ? "#854F0B" : "#854F0B"
     readonly property color aurSurface:       isDark ? "#3A2A1A" : "#FAEEDA"
     readonly property color aurBorder:        isDark ? "#FAC775" : "#FAC775"
+    readonly property color aurText:          isDark ? "#D4A050" : "#633806"
 
     // Flatpak
     readonly property color flatpak:          isDark ? "#534AB7" : "#534AB7"

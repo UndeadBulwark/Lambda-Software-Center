@@ -1,6 +1,9 @@
 #include "FlatpakBackend.h"
 #include "PackageSearchUtils.h"
 #include <QTimer>
+#include <QLoggingCategory>
+
+Q_LOGGING_CATEGORY(lscFlatpak, "lsc.flatpak")
 
 FlatpakBackend::FlatpakBackend(QObject *parent)
     : IPackageBackend(parent)
@@ -10,23 +13,8 @@ FlatpakBackend::FlatpakBackend(QObject *parent)
 void FlatpakBackend::search(const QString &query) {
     Q_UNUSED(query)
     // TODO: replace with libflatpak
-    QTimer::singleShot(0, this, [this, query]() {
-        if (query.startsWith("zzznomatch")) {
-            emit searchResultsReady(QList<Package>());
-            return;
-        }
-        Package p;
-        p.id = "org.mozilla.firefox@flatpak";
-        p.name = "Firefox";
-        p.version = "150.0";
-        p.description = "Mock Flatpak Firefox result";
-        p.source = Package::Source::Flatpak;
-        p.state = Package::InstallState::NotInstalled;
-        p.flatpakRef = "app/org.mozilla.firefox/x86_64/stable";
-        QList<Package> results;
-        results.append(p);
-        sortPackagesBySearchRelevance(results, query);
-        emit searchResultsReady(results);
+    QTimer::singleShot(0, this, [this]() {
+        emit searchResultsReady(QList<Package>());
     });
 }
 

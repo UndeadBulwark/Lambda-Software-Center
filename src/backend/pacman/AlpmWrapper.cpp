@@ -3,7 +3,11 @@
 #include <QStringList>
 #include <QDir>
 #include <QFile>
-#include <QtDebug>
+#include <QLoggingCategory>
+#include <QSet>
+#include <QStandardPaths>
+
+Q_LOGGING_CATEGORY(lscPacman, "lsc.pacman")
 
 AlpmWrapper::AlpmWrapper(const QString &root, const QString &dbpath, QObject *parent)
     : QObject(parent)
@@ -26,21 +30,21 @@ bool AlpmWrapper::initialize() {
         QDir rootDir(m_root);
         if (!rootDir.exists() && !rootDir.mkpath(".")) {
             m_lastError = QString("Failed to create root directory: %1").arg(m_root);
+            qCWarning(lscPacman) << m_lastError;
             return false;
         }
         QDir dbDir(m_dbpath);
         if (!dbDir.exists() && !dbDir.mkpath(".")) {
             m_lastError = QString("Failed to create dbpath directory: %1").arg(m_dbpath);
+            qCWarning(lscPacman) << m_lastError;
             return false;
         }
 
-        // Ensure local/ subdir exists (required by libalpm)
         QDir localDir(m_dbpath + QStringLiteral("/local"));
         if (!localDir.exists()) {
             localDir.mkpath(".");
         }
 
-        // Copy real sync DBs into test sandbox if present but sandbox sync dir is empty
         QDir sandboxSyncDir(m_dbpath + QStringLiteral("/sync"));
         if (sandboxSyncDir.entryList({"*.db"}, QDir::Files).isEmpty()) {
             QDir realSyncDir("/var/lib/pacman/sync");
@@ -51,6 +55,7 @@ bool AlpmWrapper::initialize() {
                     QFile::copy(realSyncDir.absoluteFilePath(dbFile),
                                 sandboxSyncDir.absoluteFilePath(dbFile));
                 }
+                qCDebug(lscPacman) << "copied" << dbs.size() << "sync DBs to sandbox";
             }
         }
 
@@ -60,26 +65,75 @@ bool AlpmWrapper::initialize() {
                                      &err);
         if (!m_handle) {
             m_lastError = QString("Failed to initialize alpm: %1").arg(alpm_strerror(err));
+            qCWarning(lscPacman) << m_lastError;
             return false;
         }
+        qCDebug(lscPacman) << "alpm initialized: root=" << m_root << "dbpath=" << m_dbpath;
     }
 
-    // Re-sync registrations so newly-copied DBs are picked up
     if (m_handle) {
         alpm_unregister_all_syncdbs(m_handle);
     }
 
     QDir syncDir(m_dbpath + QStringLiteral("/sync"));
-    for (const QString &file : syncDir.entryList({"*.db"}, QDir::Files)) {
-        QString dbName = file;
-        dbName.chop(3);
+    QStringList allDbFiles = syncDir.entryList({"*.db"}, QDir::Files);
+    for (auto &name : allDbFiles)
+        name.chop(3);
+
+    QStringList repoOrder;
+    bool useConfOrder = (m_root == QStringLiteral("/") && QFile::exists(QStringLiteral("/etc/pacman.conf")));
+    if (useConfOrder) {
+        repoOrder = readPacmanConfRepoOrder();
+    }
+
+    int dbCount = 0;
+    QSet<QString> registered;
+
+    // Register DBs in pacman.conf order first
+    if (useConfOrder) {
+        for (const QString &repoName : repoOrder) {
+            if (!allDbFiles.contains(repoName))
+                continue;
+            if (registered.contains(repoName))
+                continue;
+            alpm_db_t *db = alpm_register_syncdb(m_handle, repoName.toUtf8().constData(),
+                                                  ALPM_SIG_DATABASE_OPTIONAL);
+            if (!db) {
+                qCWarning(lscPacman) << "failed to register sync db:" << repoName
+                         << alpm_strerror(alpm_errno(m_handle));
+            } else {
+                registered.insert(repoName);
+                dbCount++;
+            }
+        }
+    }
+
+    // Register any remaining DBs not in pacman.conf (or fallback alphabetical order)
+    for (const QString &dbName : allDbFiles) {
+        if (registered.contains(dbName))
+            continue;
         alpm_db_t *db = alpm_register_syncdb(m_handle, dbName.toUtf8().constData(),
                                               ALPM_SIG_DATABASE_OPTIONAL);
         if (!db) {
-            qWarning() << "Failed to register sync db:" << dbName
+            qCWarning(lscPacman) << "failed to register sync db:" << dbName
                      << alpm_strerror(alpm_errno(m_handle));
+        } else {
+            dbCount++;
         }
     }
+
+    // Log registration order
+    {
+        QStringList orderNames;
+        alpm_list_t *dbs = alpm_get_syncdbs(m_handle);
+        for (alpm_list_t *i = dbs; i; i = alpm_list_next(i)) {
+            alpm_db_t *db = static_cast<alpm_db_t*>(i->data);
+            orderNames.append(QString::fromUtf8(alpm_db_get_name(db)));
+        }
+        qCDebug(lscPacman) << "DB registration order:" << orderNames.join(", ");
+    }
+
+    qCDebug(lscPacman) << "registered" << dbCount << "sync databases";
 
     return true;
 }
@@ -131,8 +185,37 @@ QString AlpmWrapper::formatSize(off_t size) const {
     return QString("%1 GB").arg(size / (1024.0 * 1024.0 * 1024.0), 0, 'f', 1);
 }
 
+QStringList AlpmWrapper::readPacmanConfRepoOrder() const {
+    // NOTE: This parser only reads the top-level /etc/pacman.conf.
+    // It does not handle Include directives for additional config files
+    // or conditional repo blocks (e.g. [repo] sections inside included files).
+    // This is sufficient for determining repo priority order, since
+    // pacman.conf itself defines the repo sections even if their Server
+    // lines come from included mirrorlists.
+
+    QStringList repos;
+    QFile f(QStringLiteral("/etc/pacman.conf"));
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return repos;
+
+    while (!f.atEnd()) {
+        QByteArray line = f.readLine().trimmed();
+        if (line.isEmpty() || line.startsWith('#'))
+            continue;
+        if (line.startsWith('[') && line.endsWith(']')) {
+            QByteArray section = line.mid(1, line.size() - 2);
+            if (section != "options")
+                repos.append(QString::fromUtf8(section));
+        }
+    }
+    f.close();
+    return repos;
+}
+
 QList<Package> AlpmWrapper::search(const QString &query) {
     if (!initialize()) return {};
+
+    qCDebug(lscPacman) << "search:" << query;
 
     QList<Package> results;
 
@@ -167,7 +250,22 @@ QList<Package> AlpmWrapper::search(const QString &query) {
         alpm_list_free(found);
     }
 
+    // Deduplicate: same package can appear in multiple repos (e.g. extra vs cachyos-extra-v3).
+    // Keep first match, which corresponds to highest-priority repo
+    // (DBs are registered in pacman.conf order and alpm_get_syncdbs returns registration order).
+    QSet<QString> seen;
+    QList<Package> deduped;
+    deduped.reserve(results.size());
+    for (const Package &p : results) {
+        if (!seen.contains(p.name)) {
+            seen.insert(p.name);
+            deduped.append(p);
+        }
+    }
+    results = deduped;
+
     sortPackagesBySearchRelevance(results, query);
+    qCDebug(lscPacman) << "search results:" << results.size() << "packages";
 
     return results;
 }
@@ -210,4 +308,112 @@ QList<Package> AlpmWrapper::checkUpdates() {
     }
 
     return updates;
+}
+
+QList<Package> AlpmWrapper::listForeignPackages() {
+    if (!initialize()) return {};
+
+    QList<Package> foreignPkgs;
+    alpm_db_t *localdb = alpm_get_localdb(m_handle);
+    alpm_list_t *syncdbs = alpm_get_syncdbs(m_handle);
+
+    QSet<QString> syncPkgNames;
+    for (alpm_list_t *di = syncdbs; di; di = alpm_list_next(di)) {
+        alpm_db_t *db = static_cast<alpm_db_t*>(di->data);
+        alpm_list_t *pkgcache = alpm_db_get_pkgcache(db);
+        for (alpm_list_t *pi = pkgcache; pi; pi = alpm_list_next(pi)) {
+            alpm_pkg_t *pkg = static_cast<alpm_pkg_t*>(pi->data);
+            if (pkg)
+                syncPkgNames.insert(QString::fromUtf8(alpm_pkg_get_name(pkg)));
+        }
+    }
+
+    alpm_list_t *localcache = alpm_db_get_pkgcache(localdb);
+    for (alpm_list_t *i = localcache; i; i = alpm_list_next(i)) {
+        alpm_pkg_t *pkg = static_cast<alpm_pkg_t*>(i->data);
+        if (!pkg) continue;
+        QString name = QString::fromUtf8(alpm_pkg_get_name(pkg));
+        if (!syncPkgNames.contains(name)) {
+            Package p = alpmPkgToPackage(pkg);
+            p.state = Package::InstallState::Installed;
+            foreignPkgs.append(p);
+        }
+    }
+
+    qCDebug(lscPacman) << "foreign packages found:" << foreignPkgs.size();
+    return foreignPkgs;
+}
+
+QStringList AlpmWrapper::findOrphans() {
+
+    QStringList orphans;
+    alpm_db_t *localdb = alpm_get_localdb(m_handle);
+    alpm_list_t *pkgcache = alpm_db_get_pkgcache(localdb);
+
+    for (alpm_list_t *i = pkgcache; i; i = alpm_list_next(i)) {
+        alpm_pkg_t *pkg = static_cast<alpm_pkg_t*>(i->data);
+        if (!pkg) continue;
+        if (alpm_pkg_get_reason(pkg) != ALPM_PKG_REASON_DEPEND) continue;
+
+        alpm_list_t *requiredby = alpm_pkg_compute_requiredby(pkg);
+        if (!requiredby) {
+            orphans.append(QString::fromUtf8(alpm_pkg_get_name(pkg)));
+        }
+        alpm_list_free(requiredby);
+    }
+
+    // NOTE: This algorithm uses alpm_pkg_get_requiredby() to detect orphans.
+    // It will miss orphan cycles — two or more DEPEND-packages that only require
+    // each other with no explicit parent. Each shows a non-empty requiredby list
+    // and won't be flagged. This is the same limitation as `pacman -Qdt` and is
+    // extremely rare in practice on Arch Linux. A full fix would require computing
+    // the transitive reachable set from all EXPLICIT packages and flagging any
+    // DEPEND package outside that set.
+
+    qCDebug(lscPacman) << "orphan scan found" << orphans.size() << "packages";
+    return orphans;
+}
+
+QStringList AlpmWrapper::findDirtyReasons() {
+    if (!initialize()) return {};
+
+    QStringList dirty;
+    alpm_db_t *localdb = alpm_get_localdb(m_handle);
+    alpm_list_t *pkgcache = alpm_db_get_pkgcache(localdb);
+
+    for (alpm_list_t *i = pkgcache; i; i = alpm_list_next(i)) {
+        alpm_pkg_t *pkg = static_cast<alpm_pkg_t*>(i->data);
+        if (!pkg) continue;
+        if (alpm_pkg_get_reason(pkg) != ALPM_PKG_REASON_DEPEND) continue;
+
+        QString name = QString::fromUtf8(alpm_pkg_get_name(pkg));
+        QString desktopPath = QStringLiteral("/usr/share/applications/%1.desktop").arg(name);
+        if (QFile::exists(desktopPath)) {
+            dirty.append(name);
+        }
+    }
+
+    qCDebug(lscPacman) << "dirty reason scan found" << dirty.size() << "packages";
+    return dirty;
+}
+
+bool AlpmWrapper::isReasonRepairNeeded() const {
+    if (m_root != QStringLiteral("/"))
+        return false;
+
+    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QString sentinel = cacheDir + QStringLiteral("/reason-repair-done");
+    return !QFile::exists(sentinel);
+}
+
+void AlpmWrapper::markReasonRepairDone() {
+    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(cacheDir);
+    QString sentinel = cacheDir + QStringLiteral("/reason-repair-done");
+    QFile f(sentinel);
+    if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        f.write("done");
+        f.close();
+        qCDebug(lscPacman) << "created reason-repair sentinel";
+    }
 }

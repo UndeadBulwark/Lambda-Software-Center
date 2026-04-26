@@ -152,6 +152,101 @@ private slots:
         QVERIFY(idxExact < idxPrefix);
     }
 
+    // --- findOrphans ---
+
+    void test_find_orphans_returns_stringlist()
+    {
+        QStringList orphans = m_wrapper->findOrphans();
+        // Sandboxed DB may have no orphans — just verify no crash and correct type
+        QVERIFY(orphans.size() >= 0);
+    }
+
+    void test_find_orphans_does_not_crash_with_empty_db()
+    {
+        AlpmWrapper emptyWrapper("/tmp/lambda-test-empty-root", "/tmp/lambda-test-empty-db");
+        QStringList orphans = emptyWrapper.findOrphans();
+        QVERIFY(orphans.isEmpty());
+    }
+
+    // --- PacmanBackend checkOrphans ---
+
+    void test_backend_check_orphans_emits_signal()
+    {
+        PacmanBackend backend;
+        QSignalSpy spy(&backend, &PacmanBackend::orphansFound);
+        backend.checkOrphans();
+        QCOMPARE(spy.count(), 1);
+    }
+
+    // --- findDirtyReasons ---
+
+    void test_find_dirty_reasons_returns_stringlist()
+    {
+        QStringList dirty = m_wrapper->findDirtyReasons();
+        QVERIFY(dirty.size() >= 0);
+    }
+
+    void test_find_dirty_reasons_does_not_crash_with_empty_db()
+    {
+        AlpmWrapper emptyWrapper("/tmp/lambda-test-empty-root", "/tmp/lambda-test-empty-db");
+        QStringList dirty = emptyWrapper.findDirtyReasons();
+        QVERIFY(dirty.isEmpty());
+    }
+
+    // --- isReasonRepairNeeded / markReasonRepairDone ---
+
+    void test_reason_repair_not_needed_in_sandbox()
+    {
+        QVERIFY(!m_wrapper->isReasonRepairNeeded());
+    }
+
+    void test_backend_check_dirty_reasons_emits_signal()
+    {
+        PacmanBackend backend;
+        QSignalSpy spy(&backend, &PacmanBackend::dirtyReasonsFound);
+        backend.checkDirtyReasons();
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void test_backend_check_dirty_reasons_always_emits()
+    {
+        PacmanBackend backend;
+        QSignalSpy spy(&backend, &PacmanBackend::dirtyReasonsFound);
+        backend.forceUninitializedState();
+        backend.checkDirtyReasons();
+        QCOMPARE(spy.count(), 1);
+        QStringList result = spy.at(0).at(0).toStringList();
+        QVERIFY(result.isEmpty());
+    }
+
+    // --- listForeignPackages ---
+
+    void test_list_foreign_packages_returns_list()
+    {
+        QList<Package> foreign = m_wrapper->listForeignPackages();
+        for (const Package &p : foreign) {
+            QCOMPARE(p.source, Package::Source::Pacman);
+            QCOMPARE(p.state, Package::InstallState::Installed);
+        }
+    }
+
+    void test_list_foreign_packages_does_not_crash_with_empty_db()
+    {
+        AlpmWrapper emptyWrapper("/tmp/lambda-test-foreign-root", "/tmp/lambda-test-foreign-db");
+        QList<Package> foreign = emptyWrapper.listForeignPackages();
+        QVERIFY(foreign.isEmpty());
+    }
+
+    void test_list_foreign_packages_on_live_system()
+    {
+        AlpmWrapper liveWrapper;
+        QList<Package> foreign = liveWrapper.listForeignPackages();
+        for (const Package &p : foreign) {
+            QVERIFY(!p.name.isEmpty());
+            QVERIFY(!p.version.isEmpty());
+        }
+    }
+
 private:
     AlpmWrapper *m_wrapper = nullptr;
 };

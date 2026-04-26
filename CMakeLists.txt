@@ -65,6 +65,13 @@ target_link_libraries(lsc_app PRIVATE
     ${ALPM_LIBRARIES}
 )
 
+target_compile_definitions(lsc_app PRIVATE LSC_BUILD_DIR="${CMAKE_BINARY_DIR}")
+
+# lsc-helper: standalone root CLI for alpm transactions, launched via pkexec
+add_executable(lsc-helper src/lsc-helper.cpp)
+target_include_directories(lsc-helper PRIVATE ${ALPM_INCLUDE_DIRS})
+target_link_libraries(lsc-helper PRIVATE ${ALPM_LIBRARIES})
+
 if(FLATPAK_FOUND)
     target_include_directories(lsc_app PRIVATE ${FLATPAK_INCLUDE_DIRS})
     target_link_libraries(lsc_app PRIVATE ${FLATPAK_LIBRARIES})
@@ -95,6 +102,8 @@ qt_add_qml_module(lsc_app
         qml/components/UpdatesBanner.qml
         qml/components/ProgressDrawer.qml
         qml/components/ConfirmDialog.qml
+        qml/components/OrphanDialog.qml
+        qml/components/PkgbuildDialog.qml
         qml/pages/BrowsePage.qml
         qml/pages/FeaturedPage.qml
         qml/pages/RecentPage.qml
@@ -108,4 +117,5 @@ enable_testing()
 add_subdirectory(tests)
 
 install(TARGETS lsc_app DESTINATION bin)
+install(TARGETS lsc-helper DESTINATION bin)
 install(FILES data/com.lambdasc.policy DESTINATION share/polkit-1/actions)

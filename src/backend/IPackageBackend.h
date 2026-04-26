@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QList>
+#include <QStringList>
 #include "Package.h"
 
 class IPackageBackend : public QObject {
@@ -27,6 +28,9 @@ signals:
     void installedListReady(QList<Package> packages);
     void updatesReady(QList<Package> updates);
     void errorOccurred(const QString &message);
+    void orphansFound(QStringList orphans);
+    void dirtyReasonsFound(QStringList packages);
+    void pkgbuildReady(const QString &pkgName, const QString &content);
 };
 
 #endif // IPACKAGEBACKEND_H

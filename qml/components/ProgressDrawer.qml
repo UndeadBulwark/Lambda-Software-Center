@@ -40,12 +40,14 @@ Rectangle {
                 font.pixelSize: 14
                 font.weight: Font.Medium
                 color: Theme.textPrimary
+                visible: progressDrawer.pkgName !== ""
             }
 
             Text {
-                text: "—"
+                text: "\u2014"
                 font.pixelSize: 14
                 color: Theme.textTertiary
+                visible: progressDrawer.pkgName !== ""
             }
 
             Text {

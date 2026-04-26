@@ -28,6 +28,7 @@ struct Package {
     float popularity = 0.0f; // AUR only
     float rating = 0.0f;     // Flatpak ODRS only
     QString flatpakRef;      // Flatpak only
+    QString gitUrl;          // AUR only — https://aur.archlinux.org/<name>.git
 };
 
 Q_DECLARE_METATYPE(Package)

@@ -121,3 +121,86 @@ A log of non-obvious architectural and design decisions. Before suggesting an al
 **Why:** Backend transaction logic for libalpm is complex (privilege escalation via polkit, transaction lifecycle, error callbacks). Building the UI with mocked signals lets us validate the entire visual chain—dialog → progress → completion → auto-hide—without the risk of system package changes during development. When the real backend is ready, we replace the Timer's `onTriggered` with `transactionManager.install(pkgId)`; the `ProgressDrawer` bindings remain unchanged.
 
 **Trade-off:** The mock is dead code once backend integration is complete. It lives in `main.qml` as a temporary `Timer`. We will remove it in the commit that wires real transactions.
+
+---
+
+## D-013 — Sidebar source items removed; SourceTabs handles filtering
+
+**Decision:** The "Sources" NavGroup (Pacman / AUR / Flatpak) was removed from `Sidebar.qml`. Source filtering is handled exclusively by `SourceTabs.qml` in the content area.
+
+**Why:** The sidebar source items were cosmetic (no click handler, no `requestPage` signal, no active state). `SourceTabs` already provides All/Pacman/AUR/Flatpak filtering in the topbar area with full interactivity. Having the same concept in two places was redundant and the non-functional sidebar items were misleading to users.
+
+**Trade-off:** Users cannot navigate to a dedicated source page from the sidebar. SourceTabs already provides this functionality inline with search results, which is the more natural UX — you filter when you're looking at packages, not before navigating.
+
+---
+
+## D-014 — Orphan detection runs automatically after pacman remove; cleanup is a separate polkit transaction
+
+**Decision:** After every successful pacman remove, `AlpmWrapper::findOrphans()` scans the local DB for packages with `ALPM_PKG_REASON_DEPEND` and an empty `requiredby` list. If orphans are found, an `OrphanDialog` prompts the user with per-package checkboxes (all checked by default, select/deselect all). Cleanup runs as a separate `pkexec lsc-helper remove-orphans` invocation with `ALPM_TRANS_FLAG_CASCADE | ALPM_TRANS_FLAG_RECURSE`.
+
+**Why:** The roadmap specifies "orphan detection and follow-up cleanup prompt." Auto-detecting after remove is the most natural UX — the user just removed a package, so they're in a cleanup mindset. Separate polkit auth means the user can review orphans before committing to removal, and the original remove is already committed even if they skip cleanup. Per-package checkboxes prevent accidental removal of packages with dirty DEPEND flags (CachyOS/CachyOS meta-package issue).
+
+**Trade-offs:**
+- Two polkit prompts for a "remove + cleanup" flow. Acceptable because the user explicitly opts into cleanup.
+- `alpm_pkg_compute_requiredby()` misses dependency cycles (two DEPEND-packages that only require each other). Noted with a comment in code — same limitation as `pacman -Qdt`. Extremely rare in practice on Arch.
+- AUR and Flatpak removes don't trigger orphan detection (only pacman). AUR doesn't have a local dep tree, and Flatpak has its own runtime dependency model not managed by alpm.
+- Unchecked orphan selections are discarded on Skip — no persistent ignore list yet (noted as TODO in OrphanDialog.qml).
+
+---
+
+## D-015 — Install reason EXPLICIT flag set on every LSC install; one-time repair on first launch
+
+**Decision:** Two-part fix for the dirty install reason flag problem:
+
+1. **Post-install flag:** After every successful `lsc-helper install`, `alpm_pkg_set_reason(pkg, ALPM_PKG_REASON_EXPLICIT)` is called on the just-installed package. This prevents LSC from ever contributing dirty DEPEND flags.
+
+2. **One-time repair:** On first launch, if sentinel file `~/.cache/lambda-software-center/reason-repair-done` doesn't exist, `AlpmWrapper::findDirtyReasons()` scans the local DB for `ALPM_PKG_REASON_DEPEND` packages that have a `.desktop` file in `/usr/share/applications/`. These are promoted to EXPLICIT via `pkexec lsc-helper set-reason`. Sentinal is created regardless of whether packages were found (prevents re-scan on clean systems).
+
+**Why:** CachyOS and other Arch derivatives with meta-packages sometimes mark explicitly-desired packages as DEPEND instead of EXPLICIT. This causes `findOrphans()` to flag user-facing apps like firefox and corectrl for removal. Heuristic: `.desktop` file = user-facing application = should be EXPLICIT. This is the freedesktop.org standard — every GUI app installs one, libs/build tools don't.
+
+**Trade-offs:**
+- `alpm_pkg_set_reason()` requires root (writes to `/var/lib/pacman/local/`). Post-install flag is embedded in `do_install()` (already running as root via pkexec). One-time repair uses new `set-reason` helper action (separate pkexec prompt).
+- False positives possible: a DEPEND package with a `.desktop` file that was legitimately installed as a dep. Extremely rare — if it has a `.desktop` file, it's a user-facing app the user likely wants to keep.
+- One-time repair is silent (no dialog). The fix is harmless metadata correction, not worth interrupting the user.
+- Repair is one-shot. The sentinel prevents re-running. LSC's own installs are always EXPLICIT post-fix, and OrphanDialog checkboxes protect against remaining dirty flags from other tools.
+
+---
+
+## D-017 — System upgrade uses alpm_sync_sysupgrade; selective upgrade uses alpm_add_pkg per-package
+
+**Decision:** The `upgrade` helper action supports two modes: (1) full system upgrade with `alpm_sync_sysupgrade()` (marks all upgradable packages), (2) selective upgrade with explicit `alpm_add_pkg()` for N named packages. Both use `alpm_trans_init(ALLDEPS)`, `alpm_trans_prepare`, and `alpm_trans_commit` with the same progress callbacks as install.
+
+**Why:** `alpm_sync_sysupgrade` is the standard pacman `-Syu` path — it handles dependency resolution, replaces, and conflicts for the full upgrade set. Selective upgrade is needed for per-package "Update" buttons in the Updates page. Post-commit `alpm_pkg_set_reason(EXPLICIT)` is applied in selective mode only (full upgrade doesn't change install reasons).
+
+**Trade-offs:**
+- Full system upgrade is binary — no "exclude" support. Per-package exclusion is not yet supported (deferred to later if needed).
+- Selective upgrade skips packages not explicitly named. If a user clicks "Update" on one package, its dependencies may also need upgrading. `ALLDEPS` ensures deps are pulled in, but only if they're available in the sync DBs.
+- TransactionManager routes upgrade through distinct `upgradeStarted/Progress/Finished` signals to avoid collision with install/remove transaction signals.
+
+---
+
+## D-018 — AUR update detection via AlpmWrapper::listForeignPackages() + AurClient::info() RPC comparison
+
+**Decision:** AUR updates are detected by listing "foreign" packages (installed locally but not in any sync DB) via `AlpmWrapper::listForeignPackages()`, then querying AUR RPC `/info` for those packages, and comparing versions using heuristic string splitting.
+
+**Why:** There is no AUR-specific local database. AUR packages are installed via `makepkg` and end up in the pacman local DB, but they have no corresponding sync DB entry. The only way to detect AUR packages is by their absence from sync DBs. AUR RPC `/info` provides the latest version for comparison.
+
+**Trade-offs:**
+- `listForeignPackages()` scans the entire local DB and all sync DBs. O(n²) in the worst case (local packages × sync packages). On a typical Arch system with ~1300 local and ~25000 sync packages, this takes ~1-2 seconds. Acceptable for a periodic check.
+- The version comparison is a heuristic (splits on `.` and `-`, compares numeric segments when both are numbers, otherwise string). It does not use `alpm_pkg_vercmp()` because we're comparing AUR version strings outside an alpm handle. May produce false positives/negatives for unusual version schemes. `alpm_pkg_vercmp` could be used if we parse the versions through a temporary alpm handle, but that's over-engineering for now.
+- The AUR RPC `/info` endpoint supports up to ~200 packages per request. Users with more than 200 AUR packages (extremely rare) would need batching. Not implemented yet.
+- Flatpak updates are not checked (no libflatpak). Blocked until libflatpak is installed.
+
+---
+
+## D-016 — AUR install flow: git clone → PKGBUILD review → makepkg → install-local
+
+**Decision:** AUR packages are installed via a multi-step pipeline: `AurBuilder.gitClone()` clones the AUR repo into `~/.cache/lambda-software-center/aur/<name>/`, the PKGBUILD is read from disk and shown in a `PkgbuildDialog` (mandatory review per D-009), `AurBuilder.makepkg()` runs `makepkg --syncdeps --noconfirm`, and the resulting `.pkg.tar.zst` is installed via `pkexec lsc-helper install-local <filepath>` (same libalpm transaction path as regular installs).
+
+**Why:** This matches the standard Arch AUR workflow. `makepkg --syncdeps` handles build dependency resolution internally (calling sudo pacman as needed). The PKGBUILD review step is mandatory per D-009. Using `install-local` with `alpm_pkg_load` + `alpm_trans_commit` keeps the install path in libalpm rather than shelling out to `pacman -U`.
+
+**Trade-offs:**
+- `makepkg --syncdeps` will trigger its own polkit prompt (via sudo) for build deps. Two auth prompts per AUR install is unavoidable without a custom makepkg wrapper.
+- Build dir is deleted-and-recloned on every install (no incremental pull). Simpler, avoids merge conflicts, negligible cost for small AUR repos.
+- Search result cache (`QHash<QString, Package>`, lifetime of object, no expiry) is used to resolve `gitUrl` at install time. User must search before installing; error emitted if package not in cache.
+- `alpm_pkg_set_reason(EXPLICIT)` is called post-install inside the helper (same as D-015), so AUR packages are always correctly marked.

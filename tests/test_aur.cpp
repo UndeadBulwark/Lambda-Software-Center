@@ -3,6 +3,8 @@
 #include <QTimer>
 #include "AurClient.h"
 #include "AurBackend.h"
+#include "AurBuilder.h"
+#include "TransactionManager.h"
 
 class TestAur : public QObject
 {
@@ -152,6 +154,140 @@ private slots:
         QCOMPARE(spy.count(), 1);
         QList<Package> results = spy.at(0).at(0).value<QList<Package>>();
         QVERIFY(!results.isEmpty());
+    }
+
+    // --- AurBuilder ---
+
+    void test_builder_git_clone_invalid_url_fails()
+    {
+        AurBuilder builder;
+        QSignalSpy spy(&builder, &AurBuilder::buildFinished);
+        builder.gitClone(QStringLiteral("nonexistent-test-pkg-12345"),
+                         QStringLiteral("https://aur.archlinux.org/nonexistent-test-pkg-12345.git"));
+
+        QEventLoop loop;
+        connect(&builder, &AurBuilder::buildFinished, &loop, &QEventLoop::quit);
+        QTimer::singleShot(30000, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        QCOMPARE(spy.count(), 1);
+        bool success = spy.at(0).at(1).toBool();
+        QVERIFY(!success);
+    }
+
+    void test_builder_search_cache_stores_results()
+    {
+        AurBackend backend;
+        QSignalSpy spy(&backend, &AurBackend::searchResultsReady);
+        backend.search("yay");
+
+        QEventLoop loop;
+        connect(&backend, &AurBackend::searchResultsReady, &loop, &QEventLoop::quit);
+        QTimer::singleShot(5000, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        QVERIFY(!spy.isEmpty());
+
+        QSignalSpy installSpy(&backend, &AurBackend::installProgress);
+        backend.install("yay@aur");
+        QVERIFY(installSpy.count() >= 0);
+    }
+
+    void test_search_result_has_git_url()
+    {
+        AurClient client;
+        QSignalSpy spy(&client, &AurClient::searchFinished);
+        client.search("yay");
+
+        QEventLoop loop;
+        connect(&client, &AurClient::searchFinished, &loop, &QEventLoop::quit);
+        QTimer::singleShot(5000, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        QVERIFY(!spy.isEmpty());
+        QList<Package> results = spy.at(0).at(0).value<QList<Package>>();
+        QVERIFY(!results.isEmpty());
+        bool hasGitUrl = false;
+        for (const Package &p : results) {
+            if (p.name == "yay" && !p.gitUrl.isEmpty()) {
+                hasGitUrl = true;
+                QVERIFY(p.gitUrl.contains(QStringLiteral("aur.archlinux.org")));
+                break;
+            }
+        }
+        QVERIFY(hasGitUrl);
+    }
+
+    // --- AurClient.info() ---
+
+    void test_info_returns_package_details()
+    {
+        AurClient client;
+        QSignalSpy spy(&client, &AurClient::infoFinished);
+        client.info(QStringList() << QStringLiteral("yay"));
+
+        QEventLoop loop;
+        connect(&client, &AurClient::infoFinished, &loop, &QEventLoop::quit);
+        QTimer::singleShot(5000, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        QCOMPARE(spy.count(), 1);
+        QList<Package> results = spy.at(0).at(0).value<QList<Package>>();
+        QVERIFY(!results.isEmpty());
+        bool foundYay = false;
+        for (const Package &p : results) {
+            if (p.name == "yay") {
+                foundYay = true;
+                QVERIFY(!p.version.isEmpty());
+                QVERIFY(p.votes >= 0);
+                break;
+            }
+        }
+        QVERIFY(foundYay);
+    }
+
+    void test_info_multiple_packages()
+    {
+        AurClient client;
+        QSignalSpy spy(&client, &AurClient::infoFinished);
+        client.info(QStringList() << QStringLiteral("yay") << QStringLiteral("paru"));
+
+        QEventLoop loop;
+        connect(&client, &AurClient::infoFinished, &loop, &QEventLoop::quit);
+        QTimer::singleShot(5000, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        QCOMPARE(spy.count(), 1);
+        QList<Package> results = spy.at(0).at(0).value<QList<Package>>();
+        QVERIFY(results.size() >= 2);
+    }
+
+    // --- AurBackend.checkUpdates() ---
+
+    void test_aur_backend_check_updates_emits_signal()
+    {
+        AurBackend backend;
+        QSignalSpy spy(&backend, &AurBackend::updatesReady);
+        backend.checkUpdates();
+
+        QEventLoop loop;
+        connect(&backend, &AurBackend::updatesReady, &loop, &QEventLoop::quit);
+        QTimer::singleShot(10000, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        QCOMPARE(spy.count(), 1);
+    }
+
+    // --- TransactionManager.systemUpgrade() ---
+
+    void test_system_upgrade_emits_upgrade_started()
+    {
+        TransactionManager tm;
+        QSignalSpy startedSpy(&tm, &TransactionManager::upgradeStarted);
+
+        tm.systemUpgrade();
+
+        QCOMPARE(startedSpy.count(), 1);
     }
 };
 

@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include <QString>
-#include <QList>
+#include <QStringList>
 #include "Package.h"
 
 extern "C" {
@@ -25,6 +25,11 @@ public:
     QList<Package> search(const QString &query);
     QList<Package> listInstalled();
     QList<Package> checkUpdates();
+    QList<Package> listForeignPackages();
+    QStringList findOrphans();
+    QStringList findDirtyReasons();
+    bool isReasonRepairNeeded() const;
+    void markReasonRepairDone();
 
 #ifdef QT_TESTLIB_LIB
     void forceUninitializedState();
@@ -38,6 +43,7 @@ private:
 
     Package alpmPkgToPackage(alpm_pkg_t *pkg) const;
     QString formatSize(off_t size) const;
+    QStringList readPacmanConfRepoOrder() const;
 };
 
 #endif // ALPMWRAPPER_H

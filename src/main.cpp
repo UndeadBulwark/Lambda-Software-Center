@@ -9,6 +9,7 @@
 #include <QTimer>
 #include <iostream>
 #include "Package.h"
+#include "backend/TransactionManager.h"
 #include "backend/pacman/PacmanBackend.h"
 #include "backend/aur/AurBackend.h"
 #include "backend/flatpak/FlatpakBackend.h"
@@ -142,6 +143,7 @@ static int runGui(int argc, char *argv[]) {
     qRegisterMetaType<Package::Source>("Package::Source");
     qRegisterMetaType<Package::InstallState>("Package::InstallState");
     qRegisterMetaType<QList<Package>>("QList<Package>");
+    qRegisterMetaType<QStringList>("QStringList");
 
     // Register Theme.qml as a singleton so all child components can import LambdaSoftwareCenter & use Theme
     qmlRegisterSingletonType(
@@ -152,6 +154,10 @@ static int runGui(int argc, char *argv[]) {
     PacmanBackend *pacmanBackend = new PacmanBackend();
     AurBackend *aurBackend = new AurBackend();
     FlatpakBackend *flatpakBackend = new FlatpakBackend();
+    TransactionManager *transactionManager = new TransactionManager();
+
+    pacmanBackend->setTransactionManager(transactionManager);
+    aurBackend->setTransactionManager(transactionManager);
 
     PackageListModel *searchModel = new PackageListModel();
     PackageListModel *installedModel = new PackageListModel();
@@ -161,6 +167,8 @@ static int runGui(int argc, char *argv[]) {
                      installedModel, &PackageListModel::setPackages);
     QObject::connect(pacmanBackend, &IPackageBackend::updatesReady,
                      updatesModel, &PackageListModel::setPackages);
+    QObject::connect(aurBackend, &IPackageBackend::updatesReady,
+                     updatesModel, &PackageListModel::appendPackages);
 
     QObject::connect(pacmanBackend, &IPackageBackend::searchResultsReady,
                      searchModel, &PackageListModel::appendPackages);
@@ -186,6 +194,25 @@ static int runGui(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("pacmanBackend", pacmanBackend);
     engine.rootContext()->setContextProperty("aurBackend", aurBackend);
     engine.rootContext()->setContextProperty("flatpakBackend", flatpakBackend);
+    engine.rootContext()->setContextProperty("transactionManager", transactionManager);
+    engine.rootContext()->setContextProperty("updateCount", 0);
+
+    QObject::connect(updatesModel, &PackageListModel::dataChanged,
+                     &engine, [&engine, updatesModel]() {
+                         engine.rootContext()->setContextProperty("updateCount", updatesModel->rowCount());
+                     });
+    QObject::connect(updatesModel, &PackageListModel::rowsInserted,
+                     &engine, [&engine, updatesModel]() {
+                         engine.rootContext()->setContextProperty("updateCount", updatesModel->rowCount());
+                     });
+    QObject::connect(updatesModel, &PackageListModel::rowsRemoved,
+                     &engine, [&engine, updatesModel]() {
+                         engine.rootContext()->setContextProperty("updateCount", updatesModel->rowCount());
+                     });
+    QObject::connect(updatesModel, &QAbstractItemModel::modelReset,
+                     &engine, [&engine, updatesModel]() {
+                         engine.rootContext()->setContextProperty("updateCount", updatesModel->rowCount());
+                     });
 
     // Print any QML warnings so we can diagnose load failures
     QObject::connect(&engine, &QQmlApplicationEngine::warnings,

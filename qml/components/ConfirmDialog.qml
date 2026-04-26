@@ -9,39 +9,38 @@ Rectangle {
     color: "#AA000000"
     z: 100
 
-    // Data properties
     property string pkgId: ""
     property string pkgName: ""
     property string pkgVersion: ""
     property string pkgSource: ""
+    property int pkgSourceInt: 0
     property var pkgDependencies: []
     property string pkgSize: ""
+    property string mode: "install"
 
     signal installConfirmed()
+    signal removeConfirmed()
     signal dialogCancelled()
 
-    // Scrim background
     MouseArea {
         anchors.fill: parent
         onClicked: confirmDialog.dialogCancelled()
     }
 
-    // Fade animation
     Behavior on opacity {
         NumberAnimation { duration: 120 }
     }
 
-    // Dialog card
     Rectangle {
         width: 420
-        height: dialogContent.height + 48
+        height: Math.min(dialogContent.height + 48, parent.height - 40)
         radius: Theme.radiusLg
         color: Theme.bgPrimary
         anchors.centerIn: parent
         z: 101
 
         border.color: Theme.borderSecondary
-        border.width: 1
+        border.width: 0.5
 
         Column {
             id: dialogContent
@@ -49,13 +48,12 @@ Rectangle {
             anchors.centerIn: parent
             spacing: 20
 
-            // Header
             Column {
                 width: parent.width
                 spacing: 6
 
                 Text {
-                    text: "Install " + confirmDialog.pkgName
+                    text: (confirmDialog.mode === "remove" ? "Remove " : "Install ") + confirmDialog.pkgName
                     font.pixelSize: 18
                     font.weight: Font.Medium
                     color: Theme.textPrimary
@@ -77,26 +75,24 @@ Rectangle {
                 }
             }
 
-            // Divider
             Rectangle {
                 width: parent.width
-                height: 1
+                height: 0.5
                 color: Theme.borderTertiary
             }
 
-            // Size delta
             Row {
                 spacing: 16
+                visible: confirmDialog.mode === "install"
 
                 MetaLine { label: "Download"; value: confirmDialog.pkgSize }
                 MetaLine { label: "Size on disk"; value: confirmDialog.pkgSize }
             }
 
-            // Dependencies
             Column {
                 width: parent.width
                 spacing: 8
-                visible: confirmDialog.pkgDependencies.length > 0
+                visible: confirmDialog.mode === "install" && confirmDialog.pkgDependencies.length > 0
 
                 Text {
                     text: "Dependencies (" + confirmDialog.pkgDependencies.length + ")"
@@ -107,41 +103,47 @@ Rectangle {
 
                 Rectangle {
                     width: parent.width
-                    height: depCol.height + 16
+                    height: Math.min(depListView.contentHeight + 16, 200)
                     radius: Theme.radiusMd
                     color: Theme.bgSecondary
                     border.color: Theme.borderTertiary
-                    border.width: 1
+                    border.width: 0.5
                     clip: true
 
-                    Column {
-                        id: depCol
+                    ListView {
+                        id: depListView
                         width: parent.width - 24
                         anchors.centerIn: parent
+                        height: parent.height - 16
                         spacing: 4
+                        model: confirmDialog.pkgDependencies
+                        clip: true
 
-                        Repeater {
-                            model: confirmDialog.pkgDependencies
-                            Text {
-                                text: modelData
-                                font.pixelSize: 12
-                                color: Theme.textSecondary
-                            }
+                        delegate: Text {
+                            text: modelData
+                            font.pixelSize: 12
+                            color: Theme.textSecondary
+                            width: depListView.width
                         }
                     }
                 }
             }
 
-            // Actions
             Row {
                 width: parent.width
                 spacing: 12
                 layoutDirection: Qt.RightToLeft
 
                 ActionButton {
-                    label: "Install"
+                    label: confirmDialog.mode === "remove" ? "Remove" : "Install"
                     primary: true
-                    onClicked: confirmDialog.installConfirmed()
+                    onClicked: {
+                        confirmDialog.visible = false
+                        if (confirmDialog.mode === "remove")
+                            confirmDialog.removeConfirmed()
+                        else
+                            confirmDialog.installConfirmed()
+                    }
                 }
 
                 ActionButton {
@@ -174,9 +176,9 @@ Rectangle {
         width: btnText.implicitWidth + 24
         height: 32
         radius: Theme.radiusMd
-        color: primary ? Theme.accent : Theme.bgSecondary
+        color: primary ? (area.pressed ? Theme.accentDark : Theme.accent) : Theme.bgSecondary
         border.color: primary ? Theme.accent : Theme.borderSecondary
-        border.width: 1
+        border.width: 0.5
 
         property string label
         property bool primary: false
@@ -186,12 +188,12 @@ Rectangle {
             id: btnText
             anchors.centerIn: parent
             text: parent.label
-            font.pixelSize: 13
-            font.weight: Font.Medium
-            color: primary ? "#FFFFFF" : Theme.textSecondary
+            font.pixelSize: 12
+            color: primary ? Theme.accentSurface : Theme.textSecondary
         }
 
         MouseArea {
+            id: area
             anchors.fill: parent
             onClicked: parent.clicked()
         }

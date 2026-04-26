@@ -1,19 +1,21 @@
-import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
-import LambdaSoftwareCenter
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
+import LambdaSoftwareCenter 1.0
 
-Rectangle {
+Item {
     id: detailPage
-    color: Theme.bgPrimary
 
     property var packageData: null
-    signal goBack()
-    signal installRequested(var pkg)
-    signal removeRequested(var pkg)
 
+    // Populated by the backend when it has a real version list.
+    // Defaults to the single current version so the picker always has something.
     property var availableVersions: packageData ? [packageData.version] : []
+
+    // Tracks which version the user has selected in the picker.
     property string selectedVersion: packageData ? packageData.version : ""
+
+    // ─── Helpers ────────────────────────────────────────────────────────────
 
     function badgeForSource(src) {
         if (src === 0) return "pacman"
@@ -23,26 +25,50 @@ Rectangle {
     }
 
     function sourceColor(src) {
-        if (src === 0) return Theme.pacman
-        if (src === 1) return Theme.aur
-        if (src === 2) return Theme.flatpak
+        if (src === 0) return "#185FA5"
+        if (src === 1) return "#854F0B"
+        if (src === 2) return "#534AB7"
         return Theme.textTertiary
     }
 
     function sourceSurface(src) {
-        if (src === 0) return Theme.pacmanSurface
-        if (src === 1) return Theme.aurSurface
-        if (src === 2) return Theme.flatpakSurface
+        if (src === 0) return "#E6F1FB"
+        if (src === 1) return "#FAEEDA"
+        if (src === 2) return "#EEEDFE"
         return Theme.bgSecondary
     }
 
     function formatBytes(bytes) {
-        if (!bytes || bytes <= 0) return "\u2013"
+        if (!bytes || bytes <= 0) return "–"
         if (bytes < 1024)        return bytes + " B"
         if (bytes < 1048576)     return (bytes / 1024).toFixed(1) + " KB"
         if (bytes < 1073741824)  return (bytes / 1048576).toFixed(1) + " MB"
         return (bytes / 1073741824).toFixed(2) + " GB"
     }
+
+    function openInstallDialog() {
+        var dlg = Window.window.confirmDialog
+        dlg.packageName    = packageData.name
+        dlg.packageVersion = selectedVersion
+        dlg.sourceBadge    = badgeForSource(packageData.source)
+        dlg.dependencyList = packageData.dependencies || []
+        dlg.downloadSize   = formatBytes(packageData.downloadSize)
+        dlg.mode           = "install"
+        dlg.visible        = true
+    }
+
+    function openRemoveDialog() {
+        var dlg = Window.window.confirmDialog
+        dlg.packageName    = packageData.name
+        dlg.packageVersion = packageData.version
+        dlg.sourceBadge    = badgeForSource(packageData.source)
+        dlg.dependencyList = []
+        dlg.downloadSize   = ""
+        dlg.mode           = "remove"
+        dlg.visible        = true
+    }
+
+    // ─── Scrollable content ─────────────────────────────────────────────────
 
     Flickable {
         anchors.fill: parent
@@ -59,9 +85,11 @@ Rectangle {
                 left:   parent.left
                 right:  parent.right
                 top:    parent.top
-                margins: Theme.contentPadding
+                margins: 20
             }
             spacing: 0
+
+            // ── Back button ─────────────────────────────────────────────────
 
             Item {
                 Layout.fillWidth: true
@@ -73,7 +101,7 @@ Rectangle {
                     height: parent.height
                     hoverEnabled: true
                     cursorShape:  Qt.PointingHandCursor
-                    onClicked: detailPage.goBack()
+                    onClicked: StackView.view.pop()
 
                     Row {
                         id: backRow
@@ -81,7 +109,7 @@ Rectangle {
                         spacing: 5
 
                         Text {
-                            text:            "\u2190"
+                            text:            "←"
                             font.pixelSize:  13
                             color:           backArea.containsMouse ? Theme.textPrimary : Theme.textSecondary
                         }
@@ -94,11 +122,14 @@ Rectangle {
                 }
             }
 
+            // ── App header row ───────────────────────────────────────────────
+
             RowLayout {
                 Layout.fillWidth: true
                 Layout.bottomMargin: 20
                 spacing: 16
 
+                // App icon
                 Rectangle {
                     width:  52
                     height: 52
@@ -115,6 +146,7 @@ Rectangle {
                     }
                 }
 
+                // Name / version / badges
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
@@ -136,24 +168,53 @@ Rectangle {
                             color:          Theme.textTertiary
                         }
 
-                        BadgePill {
-                            variant: packageData ? badgeForSource(packageData.source) : "pacman"
-                            label:   packageData ? badgeForSource(packageData.source) : ""
-                            visible: packageData !== null
+                        // Source badge pill
+                        Rectangle {
+                            implicitWidth:  sourcePillText.implicitWidth + 16
+                            implicitHeight: 18
+                            radius: 10
+                            color: packageData ? sourceSurface(packageData.source) : "transparent"
+
+                            Text {
+                                id:             sourcePillText
+                                anchors.centerIn: parent
+                                text:           packageData ? badgeForSource(packageData.source) : ""
+                                font.pixelSize: 10
+                                font.weight:    Font.Medium
+                                color:          packageData ? sourceColor(packageData.source) : Theme.textTertiary
+                            }
                         }
 
-                        BadgePill {
-                            variant: "installed"
-                            label:   "installed"
-                            visible: packageData && packageData.isInstalled
+                        // Installed badge pill (visible when installed)
+                        Rectangle {
+                            visible:        packageData && packageData.isInstalled
+                            implicitWidth:  installedPillText.implicitWidth + 16
+                            implicitHeight: 18
+                            radius: 10
+                            color:  "#EAF3DE"
+
+                            Text {
+                                id:             installedPillText
+                                anchors.centerIn: parent
+                                text:           "installed"
+                                font.pixelSize: 10
+                                font.weight:    Font.Medium
+                                color:          "#3B6D11"
+                            }
                         }
                     }
                 }
 
+                // Action controls (version picker + install/remove button)
                 RowLayout {
                     spacing: 8
                     Layout.alignment: Qt.AlignVCenter
 
+                    // ── Version picker ───────────────────────────────────────
+                    // Shown only when there is more than one available version,
+                    // or when the package is not yet installed (so user can
+                    // choose which version to install once the backend provides
+                    // a real list).
                     ComboBox {
                         id: versionPicker
                         visible: (availableVersions.length > 1) ||
@@ -179,10 +240,10 @@ Rectangle {
 
                         background: Rectangle {
                             color:        Theme.bgPrimary
-                            radius:       Theme.radiusMd
+                            radius:       6
                             border.width: 0.5
                             border.color: versionPicker.pressed
-                                          ? Theme.accentLight
+                                          ? "#97C459"
                                           : Theme.borderSecondary
                         }
 
@@ -218,7 +279,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color:        Theme.bgPrimary
-                                radius:       Theme.radiusMd
+                                radius:       6
                                 border.width: 0.5
                                 border.color: Theme.borderSecondary
                             }
@@ -253,14 +314,17 @@ Rectangle {
                         }
                     }
 
+                    // ── Install button (not installed) ───────────────────────
+
                     Rectangle {
+                        id: installButton
                         visible:       packageData && !packageData.isInstalled
                         implicitWidth: installLabel.implicitWidth + 28
                         height:        30
-                        radius:        Theme.radiusMd
+                        radius:        6
                         color:         installArea.pressed
-                                       ? Theme.accentDark
-                                       : Theme.accent
+                                       ? "#2F560D"
+                                       : "#3B6D11"
 
                         Behavior on color {
                             ColorAnimation { duration: 80 }
@@ -271,27 +335,32 @@ Rectangle {
                             anchors.centerIn:  parent
                             text:              "Install"
                             font.pixelSize:    12
-                            color:             Theme.accentSurface
+                            color:             "#EAF3DE"
                         }
 
                         MouseArea {
                             id:          installArea
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked:   detailPage.installRequested(packageData)
+                            onClicked:   detailPage.openInstallDialog()
                         }
                     }
 
+                    // ── Remove button (installed) ────────────────────────────
+
                     Rectangle {
+                        id: removeButton
                         visible:       packageData && packageData.isInstalled
                         implicitWidth: removeLabel.implicitWidth + 28
                         height:        30
-                        radius:        Theme.radiusMd
+                        radius:        6
                         color:         removeArea.containsMouse
                                        ? Theme.bgSecondary
                                        : "transparent"
                         border.width:  0.5
-                        border.color:  Theme.borderSecondary
+                        border.color:  removeArea.containsMouse
+                                       ? Theme.borderSecondary
+                                       : Theme.borderSecondary
 
                         Behavior on color {
                             ColorAnimation { duration: 80 }
@@ -310,11 +379,13 @@ Rectangle {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape:  Qt.PointingHandCursor
-                            onClicked:    detailPage.removeRequested(packageData)
+                            onClicked:    detailPage.openRemoveDialog()
                         }
                     }
                 }
             }
+
+            // ── Divider ──────────────────────────────────────────────────────
 
             Rectangle {
                 Layout.fillWidth:   true
@@ -323,6 +394,8 @@ Rectangle {
                 Layout.bottomMargin: 20
             }
 
+            // ── Description ──────────────────────────────────────────────────
+
             Text {
                 Layout.fillWidth: true
                 text: packageData
@@ -330,13 +403,14 @@ Rectangle {
                          ? packageData.longDescription
                          : packageData.description)
                       : "No description available."
-                font.pixelSize:     12
-                color:              Theme.textSecondary
-                wrapMode:           Text.WordWrap
-                lineHeight:         1.45
-                lineHeightMode:     Text.ProportionalHeight
+                font.pixelSize:   12
+                color:            Theme.textSecondary
+                wrapMode:         Text.WordWrap
+                lineHeight:       1.45
                 Layout.bottomMargin: 24
             }
+
+            // ── Details section ───────────────────────────────────────────────
 
             Text {
                 text:             "Details"
@@ -346,6 +420,7 @@ Rectangle {
                 Layout.bottomMargin: 14
             }
 
+            // Key-value detail grid
             GridLayout {
                 Layout.fillWidth:   true
                 columns:            2
@@ -353,50 +428,55 @@ Rectangle {
                 rowSpacing:         10
                 Layout.bottomMargin: 8
 
+                // Installed size
                 Text {
                     text:           "Installed size"
                     font.pixelSize: 12
                     color:          Theme.textTertiary
                 }
                 Text {
-                    text:           packageData ? formatBytes(packageData.installedSize) : "\u2013"
+                    text:           packageData ? formatBytes(packageData.installedSize) : "–"
                     font.pixelSize: 12
                     color:          Theme.textSecondary
                 }
 
+                // Download size
                 Text {
                     text:           "Download size"
                     font.pixelSize: 12
                     color:          Theme.textTertiary
                 }
                 Text {
-                    text:           packageData ? formatBytes(packageData.downloadSize) : "\u2013"
+                    text:           packageData ? formatBytes(packageData.downloadSize) : "–"
                     font.pixelSize: 12
                     color:          Theme.textSecondary
                 }
 
+                // Source
                 Text {
                     text:           "Source"
                     font.pixelSize: 12
                     color:          Theme.textTertiary
                 }
                 Text {
-                    text:           packageData ? badgeForSource(packageData.source) : "\u2013"
+                    text:           packageData ? badgeForSource(packageData.source) : "–"
                     font.pixelSize: 12
                     color:          Theme.textSecondary
                 }
 
+                // Version
                 Text {
                     text:           "Version"
                     font.pixelSize: 12
                     color:          Theme.textTertiary
                 }
                 Text {
-                    text:           packageData ? packageData.version : "\u2013"
+                    text:           packageData ? packageData.version : "–"
                     font.pixelSize: 12
                     color:          Theme.textSecondary
                 }
 
+                // Dependencies
                 Text {
                     text:            "Dependencies"
                     font.pixelSize:  12
@@ -413,6 +493,7 @@ Rectangle {
                     wrapMode:       Text.WordWrap
                 }
 
+                // Flatpak rating (only shown when source === 2 and rating > 0)
                 Text {
                     visible:        packageData && packageData.source === 2 && packageData.rating > 0
                     text:           "Rating"
@@ -421,12 +502,13 @@ Rectangle {
                 }
                 Text {
                     visible:        packageData && packageData.source === 2 && packageData.rating > 0
-                    text:           packageData ? packageData.rating.toFixed(1) + " / 5" : "\u2013"
+                    text:           packageData ? packageData.rating.toFixed(1) + " / 5" : "–"
                     font.pixelSize: 12
                     color:          Theme.textSecondary
                 }
             }
 
+            // Bottom padding
             Item { implicitHeight: 20 }
         }
     }

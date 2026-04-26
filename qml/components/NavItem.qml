@@ -32,12 +32,12 @@ Rectangle {
         // Source dot (for Sources group)
         Rectangle {
             id: dot
-            width: navItem.sourceDot !== "" ? 8 : 0
+            width: (navItem.sourceDot !== null && navItem.sourceDot !== "") ? 8 : 0
             height: width
             Layout.alignment: Qt.AlignVCenter
             radius: width / 2
-            color: navItem.sourceDot
-            visible: navItem.sourceDot !== ""
+            color: navItem.sourceDot ? navItem.sourceDot : "transparent"
+            visible: navItem.sourceDot !== null && navItem.sourceDot !== ""
         }
 
         Text {
