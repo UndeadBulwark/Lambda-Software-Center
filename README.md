@@ -6,9 +6,9 @@ Auto-detects system dark/light theme and switches palette live without restart.
 
 ![Lambda Software Center — Dark Theme](docs/screenshots/UI-Dark-Theme.png)
 
-![Version](https://img.shields.io/badge/version-v0.4.0-blue)
+![Version](https://img.shields.io/badge/version-v0.5.0-blue)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
-![Tests](https://img.shields.io/badge/tests-47%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-78%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
 
 ## Architecture highlights
@@ -26,8 +26,8 @@ The UI layer is pure QML with no logic. All backend logic lives in C++ with a cl
 | 0.1.0 | Backend Foundation | ✅ All three backends work headlessly |
 | 0.2.0 | Application Shell | ✅ Navigable UI with live search data, system theme auto-detection |
 | 0.3.0 | Package Detail View | ✅ Detail page with real metadata, back navigation, ghost Install/Remove buttons |
-| 0.4.0 | Install and Remove | System changes work end to end |
-| 0.5.0 | Update Manager | Full upgrade flow across all backends |
+| 0.4.0 | Install and Remove | ✅ System changes work end to end (pacman + AUR, Flatpak stubbed) |
+| 0.5.0 | Update Manager | ✅ Full upgrade flow, per-package update, AUR update detection, UpdatesBanner |
 | 0.6.0 | Discovery and Curation | Featured, categories, curated content |
 | 0.7.0 | Background Service | Update notifications without the app open |
 | 0.8.0 | Settings | Configurable behavior through the UI |
