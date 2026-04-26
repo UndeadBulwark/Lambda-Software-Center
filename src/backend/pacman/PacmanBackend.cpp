@@ -19,14 +19,27 @@ void PacmanBackend::setTransactionManager(TransactionManager *tm) {
     if (m_tm) {
         connect(m_tm, &TransactionManager::transactionProgress,
                 this, [this](const QString &pkgId, int percent, const QString &step) {
-                    emit installProgress(pkgId, percent, step);
+                    if (m_isRemove)
+                        emit removeProgress(pkgId, percent, step);
+                    else
+                        emit installProgress(pkgId, percent, step);
                 });
         connect(m_tm, &TransactionManager::transactionFinished,
                 this, [this](const QString &pkgId, bool success, const QString &error) {
-                    if (success)
-                        emit installFinished(pkgId, true, QString());
-                    else
-                        emit installFinished(pkgId, false, error);
+                    QString id = m_pendingPkgId.isEmpty() ? pkgId : m_pendingPkgId;
+                    m_pendingPkgId.clear();
+                    if (m_isRemove) {
+                        m_isRemove = false;
+                        if (success)
+                            emit removeFinished(id, true, QString());
+                        else
+                            emit removeFinished(id, false, error);
+                    } else {
+                        if (success)
+                            emit installFinished(id, true, QString());
+                        else
+                            emit installFinished(id, false, error);
+                    }
                 });
     }
 }
@@ -45,6 +58,8 @@ void PacmanBackend::search(const QString &query) {
 }
 
 void PacmanBackend::install(const QString &pkgId) {
+    m_isRemove = false;
+    m_pendingPkgId = pkgId;
     if (m_tm) {
         m_tm->install(pkgId, static_cast<int>(Package::Source::Pacman));
     } else {
@@ -53,6 +68,8 @@ void PacmanBackend::install(const QString &pkgId) {
 }
 
 void PacmanBackend::remove(const QString &pkgId) {
+    m_isRemove = true;
+    m_pendingPkgId = pkgId;
     if (m_tm) {
         m_tm->remove(pkgId, static_cast<int>(Package::Source::Pacman));
     } else {

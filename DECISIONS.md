@@ -204,3 +204,16 @@ A log of non-obvious architectural and design decisions. Before suggesting an al
 - Build dir is deleted-and-recloned on every install (no incremental pull). Simpler, avoids merge conflicts, negligible cost for small AUR repos.
 - Search result cache (`QHash<QString, Package>`, lifetime of object, no expiry) is used to resolve `gitUrl` at install time. User must search before installing; error emitted if package not in cache.
 - `alpm_pkg_set_reason(EXPLICIT)` is called post-install inside the helper (same as D-015), so AUR packages are always correctly marked.
+- AUR update from UpdatesPage: routes through `aurBackend.install()` which triggers the full PKGBUILD review flow. ConfirmDialog (showing dependencies/size) is skipped for updates from the Updates page — PKGBUILD review is the mandatory gate per D-009. This is acceptable because: (1) the user already knows what they're updating, (2) PKGBUILD review provides the security gate, (3) dependency info is less relevant for updates.
+
+---
+
+## D-019 — removeFinished signal now properly emitted for remove operations
+
+**Decision:** Both `PacmanBackend` and `AurBackend` now track whether the current transaction is an install or remove via `m_isRemove` flag, and emit `removeFinished`/`removeProgress` instead of `installFinished`/`installProgress` for remove operations. Previously, both backends unconditionally emitted `installFinished` on transaction completion, which meant the UI ProgressDrawer would never close after a successful remove.
+
+**Why:** The `IPackageBackend` interface defines both `installFinished` and `removeFinished` signals, but the `TransactionManager` only emits `transactionFinished` (a single signal for both operations). The backends need to disambiguate which signal to re-emit based on whether they initiated an install or remove.
+
+**Trade-offs:**
+- The `m_isRemove` flag is reset after each transaction. If two rapid remove operations are queued, only the last one's signal routing is correct. Since `TransactionManager::busy()` prevents concurrent operations, this is safe.
+- `PacmanBackend` now also emits `removeProgress` during remove operations (previously silent). This means the ProgressDrawer will show step labels like "Removing" during pacakge removal, which is useful UX.

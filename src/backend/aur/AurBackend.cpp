@@ -81,20 +81,31 @@ void AurBackend::setTransactionManager(TransactionManager *tm) {
         connect(m_tm, &TransactionManager::transactionProgress,
                 this, [this](const QString &pkgId, int percent, const QString &step) {
                     Q_UNUSED(pkgId)
-                    if (!m_pendingInstallPkgId.isEmpty())
+                    if (m_isRemove && !m_pendingRemovePkgId.isEmpty())
+                        emit removeProgress(m_pendingRemovePkgId, percent, step);
+                    else if (!m_pendingInstallPkgId.isEmpty())
                         emit installProgress(m_pendingInstallPkgId, percent, step);
                 });
         connect(m_tm, &TransactionManager::transactionFinished,
                 this, [this](const QString &pkgId, bool success, const QString &error) {
                     Q_UNUSED(pkgId)
-                    if (!m_pendingInstallPkgId.isEmpty()) {
+                    if (m_isRemove) {
+                        QString id = m_pendingRemovePkgId;
+                        m_pendingRemovePkgId.clear();
+                        m_isRemove = false;
+                        if (success)
+                            emit removeFinished(id, true, QString());
+                        else
+                            emit removeFinished(id, false, error);
+                    } else if (!m_pendingInstallPkgId.isEmpty()) {
                         QString id = m_pendingInstallPkgId;
+                        QString name = m_pendingInstallPkgName;
                         m_pendingInstallPkgId.clear();
                         m_pendingInstallPkgName.clear();
 
                         if (success) {
                             QString buildDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
-                                + QStringLiteral("/aur/%1").arg(m_pendingInstallPkgName);
+                                + QStringLiteral("/aur/%1").arg(name);
                             QDir(buildDir).removeRecursively();
                         }
 
@@ -116,6 +127,7 @@ void AurBackend::onSearchResults(QList<Package> results) {
 }
 
 void AurBackend::install(const QString &pkgId) {
+    m_isRemove = false;
     QString pkgName = stripPkgName(pkgId);
 
     if (m_searchCache.contains(pkgName)) {
@@ -133,6 +145,8 @@ void AurBackend::install(const QString &pkgId) {
 }
 
 void AurBackend::remove(const QString &pkgId) {
+    m_isRemove = true;
+    m_pendingRemovePkgId = pkgId;
     if (m_tm) {
         m_tm->remove(pkgId, static_cast<int>(Package::Source::AUR));
     } else {

@@ -145,7 +145,7 @@ Rectangle {
                         BadgePill {
                             variant: "installed"
                             label:   "installed"
-                            visible: packageData && packageData.isInstalled
+                            visible: packageData && packageData.state === 1
                         }
                     }
                 }
@@ -157,7 +157,7 @@ Rectangle {
                     ComboBox {
                         id: versionPicker
                         visible: (availableVersions.length > 1) ||
-                                 (packageData && !packageData.isInstalled)
+                                 (packageData && packageData.state !== 1)
                         model: availableVersions.length > 0
                                ? availableVersions
                                : (packageData ? [packageData.version] : [])
@@ -254,7 +254,7 @@ Rectangle {
                     }
 
                     Rectangle {
-                        visible:       packageData && !packageData.isInstalled
+                        visible:       packageData && packageData.state !== 1
                         implicitWidth: installLabel.implicitWidth + 28
                         height:        30
                         radius:        Theme.radiusMd
@@ -283,7 +283,7 @@ Rectangle {
                     }
 
                     Rectangle {
-                        visible:       packageData && packageData.isInstalled
+                        visible:       packageData && packageData.state === 1
                         implicitWidth: removeLabel.implicitWidth + 28
                         height:        30
                         radius:        Theme.radiusMd

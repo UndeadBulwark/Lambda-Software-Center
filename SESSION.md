@@ -25,6 +25,32 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 ---
 
+## Bug Fixes — v0.4.0/v0.5.0 Critical Fixes
+
+### Bug 1: DetailPage Install/Remove button visibility broken (Critical)
+- `PackageListModel` exposes `state` (enum: 0/1/2), not `isInstalled` (bool). DetailPage.qml referenced a non-existent `isInstalled` property.
+- **Fix:** Replaced all 4 occurrences of `packageData.isInstalled` with `packageData.state === 1` (Installed) or `packageData.state !== 1` (NotInstalled).
+- **Impact:** Remove button never showed, Install button always showed, "Installed" badge never appeared regardless of actual install state.
+
+### Bug 2: `removeFinished` signal never emitted (Critical)
+- Both `PacmanBackend` and `AurBackend` connected `TransactionManager::transactionFinished` but always emitted `installFinished`, even for remove operations.
+- **Fix:** Added `m_isRemove` and `m_pendingPkgId`/`m_pendingRemovePkgId` tracking. `setTransactionManager()` now checks `m_isRemove` and routes to `removeFinished`/`removeProgress` or `installFinished`/`installProgress` accordingly.
+- **Fix in AurBackend:** Also fixed a bug where `m_pendingInstallPkgName` was used after being cleared (build dir cleanup now uses a local copy).
+- **Added:** `removeProgress` signal to `IPackageBackend` interface (was missing — only `installProgress` existed).
+- **Impact:** ProgressDrawer would never auto-close after a successful remove. Remove operation appeared to hang.
+
+### Bug 3: ConfirmDialog shows same value for Download and Size on disk (Minor)
+- Both fields used `confirmDialog.pkgSize` (mapped to `downloadSize`).
+- **Fix:** Added `pkgInstalledSize` property to ConfirmDialog. `main.qml` now wires `packageData.installedSize` to it. Download shows `pkgSize`, Size on disk shows `pkgInstalledSize`. Empty values display as "–".
+
+### Bug 4 (Not a bug, just a decision): AUR update from UpdatesPage skips ConfirmDialog
+- AUR updates from UpdatesPage call `aurBackend.install()` directly, bypassing ConfirmDialog. PKGBUILD review is still triggered (mandatory per D-009). Recorded in DECISIONS.md D-018.
+
+### Removed dead code
+- `main.qml`: Removed `lastTransactionWasRemove` and `lastRemoveSource` properties. Orphan check now handled by `pacmanBackend.onRemoveFinished` signal handler instead of `transactionManager.onTransactionFinished`.
+
+---
+
 ## Session Closeout — Sat Apr 25
 
 ### v0.5.0 — Update Manager

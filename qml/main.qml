@@ -20,8 +20,6 @@ ApplicationWindow {
     property string currentPage: "browse"
     property string searchQuery: ""
     property int activeSourceFilter: -1
-    property bool lastTransactionWasRemove: false
-    property int lastRemoveSource: -1
     property bool waitingForReasonFix: false
     property bool updateCheckPending: false
 
@@ -120,6 +118,7 @@ ApplicationWindow {
                 confirmDialog.pkgSourceInt    = pkg.source
                 confirmDialog.pkgDependencies = pkg.dependencies || []
                 confirmDialog.pkgSize         = formatBytes(pkg.downloadSize)
+                confirmDialog.pkgInstalledSize = formatBytes(pkg.installedSize)
                 confirmDialog.mode            = "install"
                 confirmDialog.visible         = true
             }
@@ -131,6 +130,7 @@ ApplicationWindow {
                 confirmDialog.pkgSourceInt    = pkg.source
                 confirmDialog.pkgDependencies = []
                 confirmDialog.pkgSize         = ""
+                confirmDialog.pkgInstalledSize = ""
                 confirmDialog.mode            = "remove"
                 confirmDialog.visible         = true
             }
@@ -152,8 +152,6 @@ ApplicationWindow {
 
         onRemoveConfirmed: {
             confirmDialog.visible = false
-            root.lastTransactionWasRemove = true
-            root.lastRemoveSource = confirmDialog.pkgSourceInt
             if (confirmDialog.pkgSourceInt === 1)
                 aurBackend.remove(confirmDialog.pkgId)
             else
@@ -225,6 +223,14 @@ ApplicationWindow {
                 pacmanBackend.markReasonRepairDone()
             }
         }
+        function onRemoveFinished(pkgId, success, error) {
+            if (success) {
+                pacmanBackend.checkOrphans()
+            }
+        }
+    }
+
+    Connections {
     }
 
     Connections {
@@ -246,12 +252,6 @@ ApplicationWindow {
                 progressDrawer.percent = 100
                 progressDrawer.statusText = "Complete"
                 hideTimer.start()
-                if (root.lastTransactionWasRemove && root.lastRemoveSource === 0) {
-                    root.lastTransactionWasRemove = false
-                    pacmanBackend.checkOrphans()
-                } else {
-                    root.lastTransactionWasRemove = false
-                }
             } else {
                 progressDrawer.isError = true
                 progressDrawer.statusText = error || "Failed"

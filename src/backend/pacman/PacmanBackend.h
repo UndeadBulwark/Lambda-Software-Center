@@ -36,6 +36,8 @@ private:
     std::unique_ptr<AlpmWrapper> m_alpm;
     TransactionManager *m_tm = nullptr;
     bool m_testForceUninitialized = false;
+    bool m_isRemove = false;
+    QString m_pendingPkgId;
 };
 
 #endif // PACMANBACKEND_H

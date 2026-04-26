@@ -24,6 +24,7 @@ signals:
     void searchResultsReady(QList<Package> results);
     void installProgress(const QString &pkgId, int percent, const QString &step);
     void installFinished(const QString &pkgId, bool success, const QString &error);
+    void removeProgress(const QString &pkgId, int percent, const QString &step);
     void removeFinished(const QString &pkgId, bool success, const QString &error);
     void installedListReady(QList<Package> packages);
     void updatesReady(QList<Package> updates);

@@ -16,6 +16,7 @@ Rectangle {
     property int pkgSourceInt: 0
     property var pkgDependencies: []
     property string pkgSize: ""
+    property string pkgInstalledSize: ""
     property string mode: "install"
 
     signal installConfirmed()
@@ -85,8 +86,8 @@ Rectangle {
                 spacing: 16
                 visible: confirmDialog.mode === "install"
 
-                MetaLine { label: "Download"; value: confirmDialog.pkgSize }
-                MetaLine { label: "Size on disk"; value: confirmDialog.pkgSize }
+                MetaLine { label: "Download"; value: confirmDialog.pkgSize || "\u2013" }
+                MetaLine { label: "Size on disk"; value: confirmDialog.pkgInstalledSize || "\u2013" }
             }
 
             Column {

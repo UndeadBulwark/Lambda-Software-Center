@@ -37,6 +37,8 @@ private:
     QHash<QString, Package> m_searchCache;
     QString m_pendingInstallPkgId;
     QString m_pendingInstallPkgName;
+    QString m_pendingRemovePkgId;
+    bool m_isRemove = false;
 
     QHash<QString, QString> m_foreignPkgVersions;
 
