@@ -142,10 +142,10 @@ Package AurClient::parsePackage(const QJsonObject &obj) const {
     p.state = Package::InstallState::NotInstalled;
     p.votes = obj.value("NumVotes").toInt();
     p.popularity = static_cast<float>(obj.value("Popularity").toDouble());
+    p.gitUrl = QStringLiteral("https://aur.archlinux.org/%1.git").arg(p.name);
     QString urlPath = obj.value("URLPath").toString();
     if (!urlPath.isEmpty()) {
         p.iconUrl = QUrl("https://aur.archlinux.org" + urlPath);
-        p.gitUrl = QStringLiteral("https://aur.archlinux.org") + urlPath;
     }
     return p;
 }
