@@ -247,6 +247,33 @@ private slots:
         }
     }
 
+    // --- isPackageInstalled ---
+
+    void test_is_package_installed_strips_version()
+    {
+        // Verify version constraint stripping: "gcc>=12" and "gcc" should
+        // produce the same lookup result. Test against sandbox (empty local DB)
+        // so both return false — the point is they don't crash and produce
+        // the same answer.
+        bool withVersion = m_wrapper->isPackageInstalled("gcc>=12");
+        bool withoutVersion = m_wrapper->isPackageInstalled("gcc");
+        QCOMPARE(withVersion, withoutVersion);
+    }
+
+    void test_is_package_installed_unknown_returns_false()
+    {
+        QVERIFY(!m_wrapper->isPackageInstalled("zzznonexistentpkgxyz123"));
+    }
+
+    void test_is_package_installed_live_system()
+    {
+        // Test against live system where pacman is definitely installed
+        AlpmWrapper liveWrapper;
+        QVERIFY(liveWrapper.isPackageInstalled("pacman"));
+        // Verify stripping: pacman>=99 should resolve same as pacman
+        QVERIFY(liveWrapper.isPackageInstalled("pacman>=99"));
+    }
+
 private:
     AlpmWrapper *m_wrapper = nullptr;
 };

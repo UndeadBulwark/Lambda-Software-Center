@@ -397,6 +397,44 @@ QStringList AlpmWrapper::findDirtyReasons() {
     return dirty;
 }
 
+bool AlpmWrapper::isPackageInstalled(const QString &name) {
+    if (!initialize()) return false;
+
+    // Strip version constraints: truncate at first >=, >, <, or =
+    // Do NOT strip from colon — that's an architecture qualifier (e.g. lib32:gcc)
+    QString strippedName = name;
+    for (int i = 0; i < strippedName.size(); ++i) {
+        QChar c = strippedName.at(i);
+        if (c == QLatin1Char('>') || c == QLatin1Char('<') || c == QLatin1Char('=')) {
+            strippedName = strippedName.left(i);
+            break;
+        }
+    }
+    strippedName = strippedName.trimmed();
+
+    alpm_db_t *localdb = alpm_get_localdb(m_handle);
+
+    // First try exact name lookup
+    alpm_pkg_t *pkg = alpm_db_get_pkg(localdb, strippedName.toUtf8().constData());
+    if (pkg)
+        return true;
+
+    // If exact match fails, check if any installed package provides this name
+    // (e.g. "p7zip" is provided by "7zip" package)
+    alpm_list_t *pkgcache = alpm_db_get_pkgcache(localdb);
+    for (alpm_list_t *i = pkgcache; i; i = alpm_list_next(i)) {
+        alpm_pkg_t *p = static_cast<alpm_pkg_t*>(i->data);
+        alpm_list_t *provides = alpm_pkg_get_provides(p);
+        for (alpm_list_t *j = provides; j; j = alpm_list_next(j)) {
+            alpm_depend_t *dep = static_cast<alpm_depend_t*>(j->data);
+            if (dep && dep->name && strippedName == QString::fromUtf8(dep->name))
+                return true;
+        }
+    }
+
+    return false;
+}
+
 bool AlpmWrapper::isReasonRepairNeeded() const {
     if (m_root != QStringLiteral("/"))
         return false;

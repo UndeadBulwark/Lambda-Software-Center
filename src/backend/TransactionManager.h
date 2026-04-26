@@ -16,6 +16,7 @@ public:
     Q_INVOKABLE void removeOrphans(const QStringList &orphans);
     Q_INVOKABLE void fixInstallReasons(const QStringList &packages);
     Q_INVOKABLE void installLocal(const QString &filepath);
+    Q_INVOKABLE void installDeps(const QStringList &pkgNames);
     Q_INVOKABLE void syncDatabases();
     Q_INVOKABLE void systemUpgrade(const QStringList &packages = QStringList());
 
@@ -52,6 +53,7 @@ private:
     bool m_busy = false;
     bool m_isSync = false;
     bool m_isUpgrade = false;
+    bool m_isInstallDeps = false;
 
     void setBusy(bool busy);
 

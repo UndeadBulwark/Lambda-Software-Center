@@ -29,6 +29,8 @@ public:
     Q_INVOKABLE void cancelBuild(const QString &pkgName);
 
 private:
+    enum class BuildPhase { Idle, DepInstall, Makepkg };
+    BuildPhase m_buildPhase = BuildPhase::Idle;
     std::unique_ptr<AurClient> m_client;
     std::unique_ptr<AurBuilder> m_builder;
     std::unique_ptr<AlpmWrapper> m_alpm;
@@ -40,6 +42,9 @@ private:
     QString m_pendingRemovePkgId;
     bool m_isRemove = false;
 
+    QString m_cachedPkgbuildContent;
+    QMetaObject::Connection m_depInstallConnection;
+
     QHash<QString, QString> m_foreignPkgVersions;
 
     bool m_checkingUpdates = false;
@@ -49,6 +54,7 @@ private:
     void onBuildFinished(const QString &pkgName, bool success, const QString &filepath);
     void onSearchResults(QList<Package> results);
     void onAurInfoResults(QList<Package> results);
+    void startMakepkg(const QString &pkgName);
 };
 
 #endif // AURBACKEND_H

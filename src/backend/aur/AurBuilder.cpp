@@ -3,8 +3,69 @@
 #include <QDir>
 #include <QFile>
 #include <QLoggingCategory>
+#include <QRegularExpression>
+#include <QSet>
 
 Q_LOGGING_CATEGORY(lscAurBuilder, "lsc.aur.builder")
+
+QStringList AurBuilder::extractDeps(const QString &pkgbuildContent) {
+    QStringList deps;
+    QSet<QString> seen;
+
+    static const QVector<QString> varNames = {
+        QStringLiteral("depends"),
+        QStringLiteral("makedepends")
+    };
+
+    for (const QString &varName : varNames) {
+        QRegularExpression re(
+            varName + QStringLiteral(R"(=\(([^)]*)\))"),
+            QRegularExpression::DotMatchesEverythingOption
+        );
+        QRegularExpressionMatch match = re.match(pkgbuildContent);
+        if (!match.hasMatch())
+            continue;
+
+        QString arrayContent = match.captured(1);
+        // Split on whitespace within the array
+        // Entries are like: 'gcc' 'cmake>=3.20' "lib32:gcc"
+        QRegularExpression entryRe(
+            QStringLiteral(R"(['"]([^'"]+)['"])")
+        );
+        QRegularExpressionMatchIterator it = entryRe.globalMatch(arrayContent);
+        while (it.hasNext()) {
+            QRegularExpressionMatch entryMatch = it.next();
+            QString dep = entryMatch.captured(1).trimmed();
+            if (dep.isEmpty())
+                continue;
+
+            // Skip architecture-qualified deps (e.g. lib32:gcc) —
+            // colon prefix is not a version constraint, let makepkg handle it
+            if (dep.contains(QLatin1Char(':')))
+                continue;
+
+            // Strip version constraints: everything from first >=, >, <, or =
+            for (int i = 0; i < dep.size(); ++i) {
+                QChar c = dep.at(i);
+                if (c == QLatin1Char('>') || c == QLatin1Char('<') || c == QLatin1Char('=')) {
+                    dep = dep.left(i);
+                    break;
+                }
+            }
+
+            dep = dep.trimmed();
+            if (dep.isEmpty())
+                continue;
+
+            if (!seen.contains(dep)) {
+                seen.insert(dep);
+                deps.append(dep);
+            }
+        }
+    }
+
+    return deps;
+}
 
 AurBuilder::AurBuilder(QObject *parent)
     : QObject(parent)
@@ -83,7 +144,6 @@ void AurBuilder::makepkg(const QString &pkgName, const QString &buildDir) {
     m_process->setWorkingDirectory(buildDir);
     m_process->setProgram(QStringLiteral("makepkg"));
     m_process->setArguments({
-        QStringLiteral("--syncdeps"),
         QStringLiteral("--noconfirm")
     });
 

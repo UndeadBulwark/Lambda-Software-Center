@@ -67,7 +67,10 @@ AurBackend::AurBackend(QObject *parent)
     connect(m_builder.get(), &AurBuilder::buildFinished,
             this, &AurBackend::onBuildFinished);
     connect(m_builder.get(), &AurBuilder::pkgbuildReady,
-            this, &AurBackend::pkgbuildReady);
+            this, [this](const QString &pkgName, const QString &content) {
+                m_cachedPkgbuildContent = content;
+                emit pkgbuildReady(pkgName, content);
+            });
 }
 
 AurBackend::~AurBackend() = default;
@@ -89,10 +92,16 @@ void AurBackend::setTransactionManager(TransactionManager *tm) {
         connect(m_tm, &TransactionManager::transactionFinished,
                 this, [this](const QString &pkgId, bool success, const QString &error) {
                     Q_UNUSED(pkgId)
+
+                    if (m_buildPhase == BuildPhase::DepInstall) {
+                        return;
+                    }
+
                     if (m_isRemove) {
                         QString id = m_pendingRemovePkgId;
                         m_pendingRemovePkgId.clear();
                         m_isRemove = false;
+                        m_buildPhase = BuildPhase::Idle;
                         if (success)
                             emit removeFinished(id, true, QString());
                         else
@@ -102,6 +111,7 @@ void AurBackend::setTransactionManager(TransactionManager *tm) {
                         QString name = m_pendingInstallPkgName;
                         m_pendingInstallPkgId.clear();
                         m_pendingInstallPkgName.clear();
+                        m_buildPhase = BuildPhase::Idle;
 
                         if (success) {
                             QString buildDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
@@ -215,6 +225,62 @@ Package::Source AurBackend::source() const {
 }
 
 void AurBackend::continueBuild(const QString &pkgName) {
+    m_isRemove = false;
+    m_buildPhase = BuildPhase::Idle;
+
+    QStringList deps = AurBuilder::extractDeps(m_cachedPkgbuildContent);
+    qCDebug(lscAur) << "extracted deps from PKGBUILD:" << deps;
+
+    QStringList missingDeps;
+    for (const QString &dep : deps) {
+        if (!m_alpm->isPackageInstalled(dep)) {
+            missingDeps.append(dep);
+        }
+    }
+    qCDebug(lscAur) << "missing deps:" << missingDeps;
+
+    if (missingDeps.isEmpty()) {
+        startMakepkg(m_pendingInstallPkgName);
+        return;
+    }
+
+    if (!m_tm) {
+        QString id = m_pendingInstallPkgId;
+        m_pendingInstallPkgId.clear();
+        m_pendingInstallPkgName.clear();
+        emit installFinished(id, false, QStringLiteral("No transaction manager for dependency install"));
+        return;
+    }
+
+    emit installProgress(m_pendingInstallPkgId, 30, QStringLiteral("Installing build dependencies"));
+    m_buildPhase = BuildPhase::DepInstall;
+
+    const QString buildPkgName = m_pendingInstallPkgName;
+    m_depInstallConnection = connect(m_tm, &TransactionManager::transactionFinished,
+            this, [this, buildPkgName](const QString &pkgId, bool success, const QString &error) {
+                Q_UNUSED(pkgId)
+                QObject::disconnect(m_depInstallConnection);
+                m_depInstallConnection = {};
+
+                if (success) {
+                    qCDebug(lscAur) << "build deps installed successfully, starting makepkg";
+                    startMakepkg(buildPkgName);
+                } else {
+                    qCWarning(lscAur) << "build dep install failed:" << error;
+                    m_buildPhase = BuildPhase::Idle;
+                    QString id = m_pendingInstallPkgId;
+                    m_pendingInstallPkgId.clear();
+                    m_pendingInstallPkgName.clear();
+                    emit installFinished(id, false,
+                        QStringLiteral("Failed to install build dependencies: %1").arg(error));
+                }
+            });
+
+    m_tm->installDeps(missingDeps);
+}
+
+void AurBackend::startMakepkg(const QString &pkgName) {
+    m_buildPhase = BuildPhase::Makepkg;
     QString buildDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
         + QStringLiteral("/aur/%1").arg(pkgName);
     m_builder->makepkg(pkgName, buildDir);
@@ -223,6 +289,13 @@ void AurBackend::continueBuild(const QString &pkgName) {
 void AurBackend::cancelBuild(const QString &pkgName) {
     Q_UNUSED(pkgName)
     m_builder->cancelBuild();
+
+    if (m_depInstallConnection) {
+        QObject::disconnect(m_depInstallConnection);
+        m_depInstallConnection = {};
+    }
+
+    m_buildPhase = BuildPhase::Idle;
 
     if (!m_pendingInstallPkgId.isEmpty()) {
         QString id = m_pendingInstallPkgId;

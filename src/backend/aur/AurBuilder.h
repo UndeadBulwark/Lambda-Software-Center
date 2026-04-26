@@ -14,6 +14,8 @@ public:
     void makepkg(const QString &pkgName, const QString &buildDir);
     void cancelBuild();
 
+    static QStringList extractDeps(const QString &pkgbuildContent);
+
 signals:
     void buildProgress(const QString &pkgName, int percent, const QString &step);
     void buildFinished(const QString &pkgName, bool success, const QString &error);

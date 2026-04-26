@@ -49,6 +49,7 @@ void TransactionManager::install(const QString &pkgId, int /*source*/) {
     m_currentPkgId = pkgId;
     m_isSync = false;
     m_isUpgrade = false;
+    m_isInstallDeps = false;
     QString pkgName = stripPkgName(pkgId);
 
     qCDebug(lscTransaction) << "install:" << pkgId << "→ stripped:" << pkgName;
@@ -68,6 +69,7 @@ void TransactionManager::remove(const QString &pkgId, int /*source*/, bool casca
     m_currentPkgId = pkgId;
     m_isSync = false;
     m_isUpgrade = false;
+    m_isInstallDeps = false;
     QString pkgName = stripPkgName(pkgId);
 
     qCDebug(lscTransaction) << "remove:" << pkgId << "→ stripped:" << pkgName << "cascade:" << cascade;
@@ -88,6 +90,7 @@ void TransactionManager::syncDatabases() {
 
     m_isSync = true;
     m_isUpgrade = false;
+    m_isInstallDeps = false;
     m_currentPkgId.clear();
 
     qCDebug(lscTransaction) << "syncDatabases";
@@ -106,6 +109,7 @@ void TransactionManager::removeOrphans(const QStringList &orphans) {
 
     m_isSync = false;
     m_isUpgrade = false;
+    m_isInstallDeps = false;
     m_currentPkgId = QStringLiteral("orphan-cleanup");
 
     QStringList args;
@@ -129,6 +133,7 @@ void TransactionManager::fixInstallReasons(const QStringList &packages) {
 
     m_isSync = true;
     m_isUpgrade = false;
+    m_isInstallDeps = false;
     m_currentPkgId.clear();
 
     QStringList args;
@@ -149,6 +154,7 @@ void TransactionManager::installLocal(const QString &filepath) {
 
     m_isSync = false;
     m_isUpgrade = false;
+    m_isInstallDeps = false;
     m_currentPkgId = filepath;
 
     QStringList args;
@@ -161,12 +167,37 @@ void TransactionManager::installLocal(const QString &filepath) {
     runHelper(args);
 }
 
+void TransactionManager::installDeps(const QStringList &pkgNames) {
+    if (m_busy)
+        return;
+
+    if (pkgNames.isEmpty())
+        return;
+
+    m_isSync = false;
+    m_isUpgrade = false;
+    m_isInstallDeps = true;
+    m_currentPkgId = QStringLiteral("install-deps");
+
+    QStringList args;
+    args << QStringLiteral("install-deps");
+    for (const QString &name : pkgNames)
+        args << name;
+
+    qCDebug(lscTransaction) << "installDeps:" << pkgNames;
+
+    emit transactionStarted(m_currentPkgId);
+    setBusy(true);
+    runHelper(args);
+}
+
 void TransactionManager::systemUpgrade(const QStringList &packages) {
     if (m_busy)
         return;
 
     m_isSync = false;
     m_isUpgrade = true;
+    m_isInstallDeps = false;
     m_currentPkgId = packages.isEmpty()
         ? QStringLiteral("system-upgrade")
         : QStringLiteral("selective-upgrade");

@@ -30,6 +30,7 @@ public:
     QStringList findDirtyReasons();
     bool isReasonRepairNeeded() const;
     void markReasonRepairDone();
+    bool isPackageInstalled(const QString &name);
 
 #ifdef QT_TESTLIB_LIB
     void forceUninitializedState();

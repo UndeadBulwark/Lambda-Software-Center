@@ -289,6 +289,72 @@ private slots:
 
         QCOMPARE(startedSpy.count(), 1);
     }
+
+    // --- AurBuilder::extractDeps() ---
+
+    void test_extract_deps_basic()
+    {
+        QString pkgbuild = QStringLiteral(
+            "pkgname=foo\n"
+            "depends=('gcc' 'cmake')\n"
+            "makedepends=('git')\n"
+        );
+        QStringList deps = AurBuilder::extractDeps(pkgbuild);
+        QVERIFY(deps.contains("gcc"));
+        QVERIFY(deps.contains("cmake"));
+        QVERIFY(deps.contains("git"));
+        QCOMPARE(deps.size(), 3);
+    }
+
+    void test_extract_deps_strips_versions()
+    {
+        QString pkgbuild = QStringLiteral(
+            "pkgname=foo\n"
+            "depends=('gcc>=12' 'cmake>=3.20')\n"
+            "makedepends=('git')\n"
+        );
+        QStringList deps = AurBuilder::extractDeps(pkgbuild);
+        QVERIFY(deps.contains("gcc"));
+        QVERIFY(deps.contains("cmake"));
+        QVERIFY(deps.contains("git"));
+        QCOMPARE(deps.size(), 3);
+    }
+
+    void test_extract_deps_skips_colon_qualifier()
+    {
+        QString pkgbuild = QStringLiteral(
+            "pkgname=foo\n"
+            "depends=('lib32:gcc' 'gcc')\n"
+        );
+        QStringList deps = AurBuilder::extractDeps(pkgbuild);
+        QVERIFY(deps.contains("gcc"));
+        QVERIFY(!deps.contains("lib32:gcc"));
+        QCOMPARE(deps.size(), 1);
+    }
+
+    void test_extract_deps_empty()
+    {
+        QString pkgbuild = QStringLiteral(
+            "pkgname=foo\n"
+            "pkgver=1.0\n"
+        );
+        QStringList deps = AurBuilder::extractDeps(pkgbuild);
+        QVERIFY(deps.isEmpty());
+    }
+
+    void test_extract_deps_multiline()
+    {
+        QSKIP("Multi-line array support not implemented — known limitation for v0.4.0");
+        QString pkgbuild = QStringLiteral(
+            "pkgname=foo\n"
+            "depends=(\n"
+            "    'gcc'\n"
+            "    'cmake'\n"
+            ")\n"
+        );
+        QStringList deps = AurBuilder::extractDeps(pkgbuild);
+        QCOMPARE(deps.size(), 2);
+    }
 };
 
 QTEST_MAIN(TestAur)

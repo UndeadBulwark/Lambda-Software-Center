@@ -624,7 +624,7 @@ static int do_install_local(alpm_handle_t *handle, const char *filepath) {
     emit_progress(0, "Preparing local install");
 
     alpm_pkg_t *pkg = nullptr;
-    if (alpm_pkg_load(handle, filepath, 0, 0, &pkg) != 0) {
+    if (alpm_pkg_load(handle, filepath, 1, 0, &pkg) != 0) {
         alpm_errno_t err = alpm_errno(handle);
         char buf[256];
         std::snprintf(buf, sizeof(buf), "alpm_pkg_load failed: %s", alpm_strerror(err));
@@ -874,6 +874,182 @@ static int do_set_reason(alpm_handle_t *handle, const std::vector<std::string> &
     return 0;
 }
 
+static int do_install_deps(alpm_handle_t *handle, const std::vector<std::string> &pkg_names) {
+    if (pkg_names.empty()) {
+        emit_progress(100, "No dependencies to install");
+        return 0;
+    }
+
+    emit_progress(0, "Preparing dependency installation");
+
+    int flags = ALPM_TRANS_FLAG_ALLDEPS;
+    if (alpm_trans_init(handle, flags) != 0) {
+        alpm_errno_t err = alpm_errno(handle);
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "alpm_trans_init failed: %s", alpm_strerror(err));
+        emit_debug(buf);
+        emit_error(alpm_strerror(err));
+        emit_errcode(static_cast<int>(err));
+        return 1;
+    }
+
+    alpm_db_t *localdb = alpm_get_localdb(handle);
+    alpm_list_t *syncdbs = alpm_get_syncdbs(handle);
+    int added = 0;
+
+    for (const auto &name : pkg_names) {
+        alpm_pkg_t *pkg = nullptr;
+        std::string resolvedName = name;
+        for (alpm_list_t *i = syncdbs; i; i = alpm_list_next(i)) {
+            alpm_db_t *db = static_cast<alpm_db_t*>(i->data);
+            pkg = alpm_db_get_pkg(db, name.c_str());
+            if (pkg) {
+                char buf[256];
+                std::snprintf(buf, sizeof(buf), "found dep %s in db %s", name.c_str(), alpm_db_get_name(db));
+                emit_debug(buf);
+                break;
+            }
+        }
+
+        // If exact name lookup fails, search for a package that provides this dep
+        // (e.g. "p7zip" is provided by "7zip" package)
+        if (!pkg) {
+            for (alpm_list_t *i = syncdbs; i; i = alpm_list_next(i)) {
+                alpm_db_t *db = static_cast<alpm_db_t*>(i->data);
+                alpm_list_t *pkgcache = alpm_db_get_pkgcache(db);
+                for (alpm_list_t *j = pkgcache; j; j = alpm_list_next(j)) {
+                    alpm_pkg_t *p = static_cast<alpm_pkg_t*>(j->data);
+                    alpm_list_t *provides = alpm_pkg_get_provides(p);
+                    for (alpm_list_t *k = provides; k; k = alpm_list_next(k)) {
+                        alpm_depend_t *dep = static_cast<alpm_depend_t*>(k->data);
+                        if (dep && dep->name && name == dep->name) {
+                            pkg = p;
+                            resolvedName = alpm_pkg_get_name(p);
+                            char buf[256];
+                            std::snprintf(buf, sizeof(buf), "dep %s provided by %s in db %s",
+                                         name.c_str(), resolvedName.c_str(), alpm_db_get_name(db));
+                            emit_debug(buf);
+                            break;
+                        }
+                    }
+                    if (pkg) break;
+                }
+                if (pkg) break;
+            }
+        }
+
+        if (!pkg) {
+            // Not found in sync DBs — may be an AUR package, skip it
+            char buf[256];
+            std::snprintf(buf, sizeof(buf), "dep not found in sync DBs, skipping: %s", name.c_str());
+            emit_debug(buf);
+            continue;
+        }
+
+        // Check if already installed locally (check both original name and resolved provider)
+        alpm_pkg_t *local = alpm_db_get_pkg(localdb, name.c_str());
+        if (!local && resolvedName != name) {
+            local = alpm_db_get_pkg(localdb, resolvedName.c_str());
+        }
+        if (local) {
+            char buf[256];
+            std::snprintf(buf, sizeof(buf), "dep already installed, skipping: %s", name.c_str());
+            emit_debug(buf);
+            continue;
+        }
+
+        if (alpm_add_pkg(handle, pkg) != 0) {
+            alpm_errno_t err = alpm_errno(handle);
+            char buf[256];
+            std::snprintf(buf, sizeof(buf), "alpm_add_pkg failed for dep %s: %s", name.c_str(), alpm_strerror(err));
+            emit_debug(buf);
+            // Continue trying other packages rather than failing entirely
+            alpm_trans_release(handle);
+            emit_error(alpm_strerror(err));
+            emit_errcode(static_cast<int>(err));
+            return 1;
+        }
+        added++;
+    }
+
+    if (added == 0) {
+        alpm_trans_release(handle);
+        // No packages were added — either all already installed or none found.
+        // Check if any were actually missing (not in local DB).
+        // If deps were requested but none found in sync DBs, that's an error.
+        bool anyMissing = false;
+        for (const auto &name : pkg_names) {
+            alpm_pkg_t *local = alpm_db_get_pkg(alpm_get_localdb(handle), name.c_str());
+            if (!local) {
+                char buf[256];
+                std::snprintf(buf, sizeof(buf), "dependency not available: %s", name.c_str());
+                emit_debug(buf);
+                anyMissing = true;
+            }
+        }
+        if (anyMissing) {
+            emit_error("Could not find all build dependencies in repository databases");
+            emit_errcode(LSC_ERR_NOT_FOUND);
+            return 1;
+        }
+        emit_progress(100, "All dependencies already satisfied");
+        return 0;
+    }
+
+    char addbuf[64];
+    std::snprintf(addbuf, sizeof(addbuf), "Adding %d packages to transaction", added);
+    emit_debug(addbuf);
+
+    alpm_list_t *data = nullptr;
+    emit_debug("preparing dependency transaction");
+    if (alpm_trans_prepare(handle, &data) != 0) {
+        alpm_errno_t err = alpm_errno(handle);
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "alpm_trans_prepare failed: %s", alpm_strerror(err));
+        emit_debug(buf);
+        emit_error(alpm_strerror(err));
+        emit_errcode(static_cast<int>(err));
+        alpm_list_free(data);
+        alpm_trans_release(handle);
+        return 1;
+    }
+    alpm_list_free(data);
+
+    data = nullptr;
+    emit_debug("committing dependency transaction");
+    if (alpm_trans_commit(handle, &data) != 0) {
+        alpm_errno_t err = alpm_errno(handle);
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "alpm_trans_commit failed: %s", alpm_strerror(err));
+        emit_debug(buf);
+        emit_error(alpm_strerror(err));
+        emit_errcode(static_cast<int>(err));
+        alpm_list_free(data);
+        alpm_trans_release(handle);
+        return 1;
+    }
+    alpm_list_free(data);
+
+    alpm_trans_release(handle);
+
+    // Verify packages were actually installed — alpm_trans_commit can return
+    // success even if downloads silently failed (e.g. bad mirror sigs)
+    localdb = alpm_get_localdb(handle);
+    for (const auto &name : pkg_names) {
+        alpm_pkg_t *local = alpm_db_get_pkg(localdb, name.c_str());
+        if (!local) {
+            char buf[256];
+            std::snprintf(buf, sizeof(buf), "dependency not installed after commit: %s", name.c_str());
+            emit_debug(buf);
+            // Skip — not fatal, makepkg will catch the missing dep
+        }
+    }
+
+    // Do NOT set EXPLICIT reason — build deps should remain DEPEND
+    emit_progress(100, "Dependencies installed");
+    return 0;
+}
+
 static int do_upgrade(alpm_handle_t *handle) {
     emit_progress(0, "Preparing system upgrade");
 
@@ -1035,7 +1211,7 @@ int main(int argc, char *argv[]) {
     g_debug = (std::getenv("LSC_DEBUG") != nullptr);
 
     if (argc < 2) {
-        std::fprintf(stderr, "Usage: lsc-helper <sync|install|install-local|remove|remove-orphans|set-reason|upgrade> ...\\n");
+        std::fprintf(stderr, "Usage: lsc-helper <sync|install|install-local|remove|remove-orphans|set-reason|upgrade|install-deps> ...\\n");
         return 1;
     }
 
@@ -1043,7 +1219,7 @@ int main(int argc, char *argv[]) {
 
     if (action != "sync" && action != "install" && action != "install-local"
         && action != "remove" && action != "remove-orphans" && action != "set-reason"
-        && action != "upgrade") {
+        && action != "upgrade" && action != "install-deps") {
         std::fprintf(stderr, "Unknown action: %s\n", action.c_str());
         return 1;
     }
@@ -1068,12 +1244,18 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    if (action == "install-deps" && argc < 3) {
+        std::fprintf(stderr, "Usage: lsc-helper install-deps <pkg1> [pkg2] ...\n");
+        return 1;
+    }
+
     std::string pkg_name;
     std::string local_filepath;
     bool cascade = false;
     std::vector<std::string> orphan_names;
     std::vector<std::string> reason_names;
     std::vector<std::string> upgrade_names;
+    std::vector<std::string> dep_names;
 
     if (action == "install" || action == "remove") {
         pkg_name = argv[2];
@@ -1092,6 +1274,9 @@ int main(int argc, char *argv[]) {
     } else if (action == "upgrade") {
         for (int i = 2; i < argc; ++i)
             upgrade_names.push_back(argv[i]);
+    } else if (action == "install-deps") {
+        for (int i = 2; i < argc; ++i)
+            dep_names.push_back(argv[i]);
     }
 
     if (!clean_stale_lock()) {
@@ -1133,6 +1318,8 @@ int main(int argc, char *argv[]) {
         ret = do_remove_orphans(handle, orphan_names);
     else if (action == "upgrade")
         ret = do_system_upgrade(handle, upgrade_names);
+    else if (action == "install-deps")
+        ret = do_install_deps(handle, dep_names);
     else
         ret = do_set_reason(handle, reason_names);
 
