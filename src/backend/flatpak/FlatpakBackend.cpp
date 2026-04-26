@@ -220,10 +220,25 @@ void FlatpakBackend::doSearch(const QString &query) {
         for (const Package &pkg : std::as_const(m_cachedRemoteRefs))
             m_refToRemote.insert(pkg.flatpakRef, pkg.flatpakRemote);
     }
+
+    if (m_installedCacheDirty) {
+        m_installedCache.clear();
+        QList<Package> installed = listInstalledRefs();
+        for (const Package &pkg : std::as_const(installed))
+            m_installedCache.insert(pkg.flatpakRef, pkg);
+        m_installedCacheDirty = false;
+    }
+
     QString lowerQuery = query.toLower();
-    for (const Package &pkg : std::as_const(m_cachedRemoteRefs)) {
+    for (Package pkg : std::as_const(m_cachedRemoteRefs)) {
         if (pkg.name.toLower().contains(lowerQuery) ||
             pkg.description.toLower().contains(lowerQuery)) {
+            auto it = m_installedCache.find(pkg.flatpakRef);
+            if (it != m_installedCache.end()) {
+                pkg.state = Package::InstallState::Installed;
+                pkg.installedSize = it->installedSize;
+                pkg.flatpakRemote = it->flatpakRemote;
+            }
             results.append(pkg);
         }
     }
@@ -293,6 +308,7 @@ void FlatpakBackend::doInstall(const QString &ref) {
     g_object_unref(txn);
     m_pendingInstallRef.clear();
     m_remoteRefsCached = false;
+    m_installedCacheDirty = true;
 
     GError *triggerError = nullptr;
     if (!flatpak_installation_run_triggers(m_installation, nullptr, &triggerError)) {
@@ -345,6 +361,7 @@ void FlatpakBackend::doRemove(const QString &ref) {
     g_object_unref(txn);
     m_pendingRemoveRef.clear();
     m_remoteRefsCached = false;
+    m_installedCacheDirty = true;
 
     GError *triggerError = nullptr;
     if (!flatpak_installation_run_triggers(m_installation, nullptr, &triggerError)) {

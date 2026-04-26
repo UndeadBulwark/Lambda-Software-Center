@@ -263,3 +263,28 @@ A log of non-obvious architectural and design decisions. Before suggesting an al
 - GLib's `signals` macro conflicts with Qt's `#define signals Q_SIGNALS`. Workaround: `#undef signals` before including `<flatpak/flatpak.h>`, then `#define signals Q_SIGNALS` after.
 - `flatpak_transaction_add_install()` requires a remote name (e.g., "flathub"), not just a ref string. The remote name is stored in `Package::flatpakRemote` during search/list and looked up via `m_refToRemote` hash at install time. If the hash misses (e.g., install from UpdatesPage without prior search), `findRemoteForRef()` falls back to querying each remote via `fetch_remote_ref_sync()`.
 - Search caches all remote refs for the session (`m_cachedRemoteRefs`). First search of a large remote (Flathub ~50k refs) takes 5-10 seconds; subsequent searches are instant.
+
+---
+
+## D-023 — Model state refresh after install/remove via updatePackageState + aggregator
+
+**Decision:** When a package is installed or removed, the UI must update immediately. This is done via a two-part mechanism: (1) `PackageListModel::updatePackageState(pkgId, newState)` flips the `state` field in-place and emits `dataChanged` for just the `StateRole` on the affected row, giving instant badge/button updates in search results; (2) `InstalledModelAggregator` handles batched refresh of the installed list by waiting for all three backends to respond before calling `setPackages()` in one shot, preventing the partial-list flashing problem that would occur if each backend's `installedListReady` independently called `appendPackages`.
+
+**Why:** Without `updatePackageState`, the search model held a stale `Package` struct with `state = NotInstalled` after install — the "Installed" badge and "Remove" button never appeared until the user searched again. Without the aggregator, `pacmanBackend.installedListReady` called `setPackages()` (replacing all data) which could wipe flatpak/AUR results if pacman arrived last.
+
+**Trade-offs:**
+- `updatePackageState()` scans the model linearly by `id`. For typical search result counts (<500), this is negligible.
+- The `InstalledModelAggregator` waits for all 3 backends to respond before updating. If the flatpak backend is slow (5-10s first call), the installed list won't appear until it finishes. This is acceptable because the list appears as a whole rather than flickering.
+- AUR's `listInstalled()` always returns empty (AUR has no local DB). The aggregator still counts it as a response. This means the installed list always waits for all 3, but AUR responds instantly, so no real delay.
+
+---
+
+## D-024 — Flatpak installed-state detection via local ref cross-reference in search
+
+**Decision:** `FlatpakBackend::doSearch()` cross-references search results against locally-installed Flatpak refs. An `m_installedCache` hash (keyed by `flatpakRef`) is built lazily on first search and invalidated on install/remove. For each search result whose `flatpakRef` matches a locally-installed ref, `state` is set to `Installed` and `installedSize`/`flatpakRemote` are copied from the installed data.
+
+**Why:** Previously, all Flatpak search results had `state = NotInstalled` because `remoteRefToPackage()` has no access to the local installation database. This meant the "Remove" button never appeared for installed Flatpaks and the "Installed" badge never showed. Cross-referencing against `listInstalledRefs()` is the correct solution — the local database is authoritative for installed state.
+
+**Trade-offs:**
+- The first search after app launch builds both the remote refs cache (5-10s for Flathub) and the installed cache (<1s). Subsequent searches are instant.
+- The installed cache is invalidated on every successful install/remove, forcing a rebuild on next search. This is correct because the local state has changed. The rebuild is fast (<1s) since it only queries the local installation, not remote refs.

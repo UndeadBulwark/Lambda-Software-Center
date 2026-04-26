@@ -23,6 +23,7 @@ set(SOURCES
     src/backend/flatpak/FlatpakBackend.cpp
     src/models/PackageListModel.cpp
     src/models/InstalledModel.cpp
+    src/models/InstalledModelAggregator.cpp
     src/models/UpdatesModel.cpp
     src/service/UpdateChecker.cpp
 )
@@ -39,6 +40,7 @@ set(HEADERS
     src/backend/flatpak/FlatpakBackend.h
     src/models/PackageListModel.h
     src/models/InstalledModel.h
+    src/models/InstalledModelAggregator.h
     src/models/UpdatesModel.h
     src/service/UpdateChecker.h
 )

@@ -6,8 +6,6 @@ Rectangle {
     id: installedPage
     color: Theme.bgPrimary
 
-    Component.onCompleted: pacmanBackend.listInstalled()
-
     GridView {
         id: grid
         anchors.fill: parent

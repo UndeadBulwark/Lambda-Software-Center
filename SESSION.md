@@ -19,9 +19,40 @@ Manages pacman (via libalpm), AUR (RPC v5 + git + makepkg), and Flatpak (via lib
 
 ## Current Version Target
 
-`v0.5.2` — Flatpak Backend Integration (libflatpak)
+`v0.6.0` — Discovery and Curation
 
-**Completed:** v0.5.2 Flatpak backend (libflatpak), v0.5.1 AUR makepkg hang fix + `alpm_pkg_load full=1` fix, v0.5.0 Update Manager, v0.4.0 Install and Remove, v0.3.1 Search fixes and UI polish, v0.3.0 Package Detail View, v0.2.0 Application Shell
+**Completed:** v0.5.3 Install state refresh + Flatpak installed detection, v0.5.2 Flatpak backend (libflatpak), v0.5.1 AUR makepkg hang fix + `alpm_pkg_load full=1` fix, v0.5.0 Update Manager, v0.4.0 Install and Remove, v0.3.1 Search fixes and UI polish, v0.3.0 Package Detail View, v0.2.0 Application Shell
+
+---
+
+## Session Closeout — Sun Apr 26
+
+### v0.5.3 — Install State Refresh + Flatpak Installed Detection
+
+Four bugs fixed:
+
+1. **Search model state never updated after install/remove** — `PackageListModel` had no way to mutate a single package's `state` in-place. Added `updatePackageState(pkgId, newState)` that finds the package by ID, updates its `InstallState`, and emits `dataChanged` for just `StateRole` on that row. In `main.cpp`, each backend's `installFinished` and `removeFinished` signals now call `searchModel->updatePackageState()` to flip the badge instantly.
+
+2. **DetailPage held a stale copy of packageData** — `StackView.push(detailPageItem, { packageData: pkg })` creates a detached JS object. Added `property string boundPkgId` to DetailPage, and a `Connections` block on `searchModel` in `main.qml` that listens for `dataChanged` and updates the detail page's `packageData.state` when the changed row matches `boundPkgId`.
+
+3. **Flatpak search results always showed `state = NotInstalled`** — `remoteRefToPackage()` had no local DB access. Added `m_installedCache` hash (keyed by `flatpakRef`) to `FlatpakBackend`, populated lazily in `doSearch()` by cross-referencing `listInstalledRefs()`. Matching results now show `state = Installed` with correct `installedSize` and `flatpakRemote`. Cache invalidated on install/remove success.
+
+4. **InstalledModel wipe from async race condition** — `pacmanBackend.installedListReady` was wired to `setPackages()` which replaces all data. If flatpak results arrived first and pacman arrived last, flatpak data was erased. Created `InstalledModelAggregator` class that accumulates results from all 3 backends and calls `setPackages()` once when all have reported. Also: `InstalledPage.onCompleted` only called `pacmanBackend.listInstalled()` — now the aggregator refreshes all 3. `main.qml`'s `onCurrentPageChanged` triggers `installedModelAggregator.refresh()` on navigate to "installed" page.
+
+**New files:**
+- `src/models/InstalledModelAggregator.h/.cpp` — Accumulates `installedListReady` from all 3 backends, commits via `setPackages()` when all report.
+
+**Modified files:**
+- `src/models/PackageListModel.h/.cpp` — Added `updatePackageState()`
+- `src/backend/flatpak/FlatpakBackend.h/.cpp` — Added `m_installedCache`, `m_installedCacheDirty`, cross-reference in `doSearch()`
+- `src/main.cpp` — Wired `installFinished`/`removeFinished` to `updatePackageState` + `installedAggregator->refresh()` + `checkUpdates()`. Replaced 3 direct `installedListReady` connects with aggregator. Exposed `installedModelAggregator` context property.
+- `qml/main.qml` — Added `Connections` on `searchModel` for `dataChanged` → update DetailPage. Added `installedModelAggregator.refresh()` on navigate to "installed" and on `Component.onCompleted`. Removed empty `Connections {}` block.
+- `qml/pages/DetailPage.qml` — Added `property string boundPkgId`
+- `qml/pages/InstalledPage.qml` — Removed `Component.onCompleted: pacmanBackend.listInstalled()` (aggregator handles refresh)
+- `CMakeLists.txt` — Added `InstalledModelAggregator.cpp/.h`
+- `tests/models/test_packagelistmodel.cpp` — 3 new tests for `updatePackageState`
+
+**Tests:** 90 passing (31 pacman + 22 aur + 1 skipped + 12 flatpak + 11 models + 15 transaction)
 
 ---
 
@@ -433,7 +464,7 @@ Tagged and released on GitHub.
 - Curated featured list shipped as versioned JSON feed (`data/featured.json`)
 - Category system mapped to AppStream categories
 - Recent additions feed from AUR RPC and Flatpak remote metadata
-- Installed view showing all installed packages across all three sources
+- Installed view showing all installed packages across all three sources (partially done — aggregator in place, needs AUR foreign package integration)
 - Icon pipeline: AppStream preferred, Flatpak from remote, AUR generated initials, disk cache
 
 ---

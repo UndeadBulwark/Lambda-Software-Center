@@ -275,6 +275,18 @@ ApplicationWindow {
     }
 
     Connections {
+        target: searchModel
+        function onDataChanged(topLeft, bottomRight, roles) {
+            var page = contentStack.currentItem
+            if (!page || !page.boundPkgId) return
+            for (var i = topLeft.row; i <= bottomRight.row; i++) {
+                var idx = searchModel.index(i, 0)
+                if (searchModel.data(idx, PackageListModel.IdRole) === page.boundPkgId) {
+                    var newState = searchModel.data(idx, PackageListModel.StateRole)
+                    page.packageData = Object.assign({}, page.packageData, { state: newState })
+                }
+            }
+        }
     }
 
     Connections {
@@ -384,11 +396,15 @@ ApplicationWindow {
         case "installed": contentStack.replace(installedPageItem); break;
         case "updates":   contentStack.replace(updatesPageItem);  break;
         }
+        if (currentPage === "installed") {
+            installedModelAggregator.refresh()
+        }
     }
 
     Component.onCompleted: {
         transactionManager.syncDatabases()
         if (pacmanBackend.isReasonRepairNeeded())
             pacmanBackend.checkDirtyReasons()
+        installedModelAggregator.refresh()
     }
 }

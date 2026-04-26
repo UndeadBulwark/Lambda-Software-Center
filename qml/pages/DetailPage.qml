@@ -8,6 +8,7 @@ Rectangle {
     color: Theme.bgPrimary
 
     property var packageData: null
+    property string boundPkgId: packageData ? packageData.packageId : ""
     signal goBack()
     signal installRequested(var pkg)
     signal removeRequested(var pkg)

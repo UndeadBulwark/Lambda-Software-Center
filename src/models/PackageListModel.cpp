@@ -81,6 +81,20 @@ void PackageListModel::appendPackages(const QList<Package> &packages) {
     endInsertRows();
 }
 
+bool PackageListModel::updatePackageState(const QString &pkgId, int newState) {
+    for (int i = 0; i < m_packages.size(); ++i) {
+        if (m_packages[i].id == pkgId) {
+            if (m_packages[i].state != static_cast<Package::InstallState>(newState)) {
+                m_packages[i].state = static_cast<Package::InstallState>(newState);
+                QModelIndex idx = index(i);
+                emit dataChanged(idx, idx, {StateRole});
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 void PackageListModel::clear() {
     if (m_packages.isEmpty())
         return;

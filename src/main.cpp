@@ -14,6 +14,7 @@
 #include "backend/aur/AurBackend.h"
 #include "backend/flatpak/FlatpakBackend.h"
 #include "models/PackageListModel.h"
+#include "models/InstalledModelAggregator.h"
 
 static void printPackage(const Package &pkg) {
     const char *src = pkg.source == Package::Source::Pacman ? "pacman" :
@@ -163,10 +164,9 @@ static int runGui(int argc, char *argv[]) {
     PackageListModel *installedModel = new PackageListModel();
     PackageListModel *updatesModel = new PackageListModel();
 
-    QObject::connect(pacmanBackend, &IPackageBackend::installedListReady,
-                     installedModel, &PackageListModel::setPackages);
-    QObject::connect(flatpakBackend, &IPackageBackend::installedListReady,
-                     installedModel, &PackageListModel::appendPackages);
+    InstalledModelAggregator *installedAggregator = new InstalledModelAggregator(installedModel);
+    installedAggregator->setBackends(pacmanBackend, aurBackend, flatpakBackend);
+
     QObject::connect(pacmanBackend, &IPackageBackend::updatesReady,
                      updatesModel, &PackageListModel::setPackages);
     QObject::connect(aurBackend, &IPackageBackend::updatesReady,
@@ -180,6 +180,42 @@ static int runGui(int argc, char *argv[]) {
                      searchModel, &PackageListModel::appendPackages);
     QObject::connect(flatpakBackend, &IPackageBackend::searchResultsReady,
                      searchModel, &PackageListModel::appendPackages);
+
+    auto refreshOnInstall = [&](IPackageBackend *backend, const QString &pkgId) {
+        searchModel->updatePackageState(pkgId, static_cast<int>(Package::Installed));
+        installedAggregator->refresh();
+        backend->checkUpdates();
+    };
+    auto refreshOnRemove = [&](IPackageBackend *backend, const QString &pkgId) {
+        searchModel->updatePackageState(pkgId, static_cast<int>(Package::NotInstalled));
+        installedAggregator->refresh();
+        backend->checkUpdates();
+    };
+
+    QObject::connect(pacmanBackend, &IPackageBackend::installFinished,
+                     [&](const QString &pkgId, bool success, const QString &) {
+                         if (success) refreshOnInstall(pacmanBackend, pkgId);
+                     });
+    QObject::connect(pacmanBackend, &IPackageBackend::removeFinished,
+                     [&](const QString &pkgId, bool success, const QString &) {
+                         if (success) refreshOnRemove(pacmanBackend, pkgId);
+                     });
+    QObject::connect(aurBackend, &IPackageBackend::installFinished,
+                     [&](const QString &pkgId, bool success, const QString &) {
+                         if (success) refreshOnInstall(aurBackend, pkgId);
+                     });
+    QObject::connect(aurBackend, &IPackageBackend::removeFinished,
+                     [&](const QString &pkgId, bool success, const QString &) {
+                         if (success) refreshOnRemove(aurBackend, pkgId);
+                     });
+    QObject::connect(flatpakBackend, &IPackageBackend::installFinished,
+                     [&](const QString &pkgId, bool success, const QString &) {
+                         if (success) refreshOnInstall(flatpakBackend, pkgId);
+                     });
+    QObject::connect(flatpakBackend, &IPackageBackend::removeFinished,
+                     [&](const QString &pkgId, bool success, const QString &) {
+                         if (success) refreshOnRemove(flatpakBackend, pkgId);
+                     });
 
     QQmlApplicationEngine engine;
 
@@ -199,6 +235,7 @@ static int runGui(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("aurBackend", aurBackend);
     engine.rootContext()->setContextProperty("flatpakBackend", flatpakBackend);
     engine.rootContext()->setContextProperty("transactionManager", transactionManager);
+    engine.rootContext()->setContextProperty("installedModelAggregator", installedAggregator);
     engine.rootContext()->setContextProperty("updateCount", 0);
 
     QObject::connect(updatesModel, &PackageListModel::dataChanged,

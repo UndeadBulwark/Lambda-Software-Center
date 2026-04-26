@@ -37,6 +37,8 @@ private:
     QList<Package> m_cachedRemoteRefs;
     bool m_remoteRefsCached = false;
     QHash<QString, QString> m_refToRemote;
+    QHash<QString, Package> m_installedCache;
+    bool m_installedCacheDirty = true;
 
     QString m_pendingInstallRef;
     QString m_pendingRemoveRef;

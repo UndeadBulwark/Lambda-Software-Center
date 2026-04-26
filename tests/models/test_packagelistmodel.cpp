@@ -101,6 +101,52 @@ private slots:
         QCOMPARE(returned.at(0).name, QString("a"));
         QCOMPARE(returned.at(1).name, QString("b"));
     }
+
+    void testUpdatePackageStateChangesState()
+    {
+        PackageListModel model;
+
+        Package a; a.id = "firefox"; a.name = "Firefox"; a.state = Package::NotInstalled;
+        Package b; b.id = "vim"; b.name = "Vim"; b.state = Package::NotInstalled;
+
+        model.setPackages({a, b});
+        QCOMPARE(model.data(model.index(0), PackageListModel::StateRole).toInt(),
+                 static_cast<int>(Package::NotInstalled));
+
+        QSignalSpy spy(&model, &QAbstractItemModel::dataChanged);
+        bool found = model.updatePackageState("firefox", static_cast<int>(Package::Installed));
+
+        QVERIFY(found);
+        QCOMPARE(model.data(model.index(0), PackageListModel::StateRole).toInt(),
+                 static_cast<int>(Package::Installed));
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void testUpdatePackageStateNotFoundReturnsFalse()
+    {
+        PackageListModel model;
+
+        Package a; a.id = "firefox"; a.name = "Firefox";
+        model.setPackages({a});
+
+        bool found = model.updatePackageState("nonexistent", static_cast<int>(Package::Installed));
+        QVERIFY(!found);
+        QCOMPARE(model.rowCount(), 1);
+    }
+
+    void testUpdatePackageStateNoChangeNoSignal()
+    {
+        PackageListModel model;
+
+        Package a; a.id = "firefox"; a.name = "Firefox"; a.state = Package::Installed;
+        model.setPackages({a});
+
+        QSignalSpy spy(&model, &QAbstractItemModel::dataChanged);
+        bool found = model.updatePackageState("firefox", static_cast<int>(Package::Installed));
+
+        QVERIFY(found);
+        QCOMPARE(spy.count(), 0);
+    }
 };
 
 QTEST_MAIN(TestPackageListModel)

@@ -40,6 +40,7 @@ public:
     QList<Package> packages() const;
     Q_INVOKABLE void clear();
     Q_INVOKABLE void appendPackages(const QList<Package> &packages);
+    Q_INVOKABLE bool updatePackageState(const QString &pkgId, int newState);
 
 private:
     QList<Package> m_packages;
